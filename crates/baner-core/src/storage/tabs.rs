@@ -1,6 +1,6 @@
 //! tab 元数据:tabs/<tab-id>/tab.json(ADR-0005)。
 
-use super::{Store, check_name};
+use super::{Store, check_name, is_encrypted_dir};
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -13,6 +13,25 @@ pub struct TabMeta {
     pub glyph: String,
     /// 排序键(分数排序键,与块相同的规则)
     pub key: String,
+    /// 是否加密(由 tab.json.age 是否存在决定;写入时忽略)
+    #[serde(default)]
+    pub encrypted: bool,
+    /// 加密且本机没有钥匙,名称与内容都不可读
+    #[serde(default)]
+    pub locked: bool,
+}
+
+impl TabMeta {
+    pub fn new(id: &str, name: &str, glyph: &str, key: &str) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            glyph: glyph.into(),
+            key: key.into(),
+            encrypted: false,
+            locked: false,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -44,23 +63,37 @@ impl Store {
             if check_name(&id).is_err() {
                 continue;
             }
-            let meta = match fs::read_to_string(entry.path().join("tab.json")) {
-                Ok(s) => {
-                    let f: TabFile = serde_json::from_str(&s)?;
+            let encrypted = is_encrypted_dir(&entry.path());
+            let meta = match self.read_logical(&entry.path(), "tab.json") {
+                Ok(Some(bytes)) => {
+                    let f: TabFile = serde_json::from_slice(&bytes)?;
                     TabMeta {
                         id,
                         name: f.name,
                         glyph: f.glyph,
                         key: f.key,
+                        encrypted,
+                        locked: false,
                     }
                 }
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => TabMeta {
+                Ok(None) => TabMeta {
                     glyph: first_char(&id),
                     name: id.clone(),
                     key: "a0".into(),
                     id,
+                    encrypted,
+                    locked: false,
                 },
-                Err(e) => return Err(e.into()),
+                // 加密且本机没有钥匙:排到最后,用锁作为单字
+                Err(Error::Locked) => TabMeta {
+                    id,
+                    name: String::new(),
+                    glyph: "⚿".into(),
+                    key: "~".into(),
+                    encrypted,
+                    locked: true,
+                },
+                Err(e) => return Err(e),
             };
             out.push(meta);
         }
@@ -82,15 +115,12 @@ impl Store {
             first_char(&tab.glyph)
         };
         let dir = self.tab_dir(&tab.id)?;
-        fs::create_dir_all(&dir)?;
         let body = serde_json::to_string_pretty(&TabFile {
             name: name.into(),
             glyph,
             key: tab.key.clone(),
         })?;
-        let tmp = dir.join(".tab.json.tmp");
-        fs::write(&tmp, body)?;
-        fs::rename(&tmp, dir.join("tab.json"))?;
+        self.write_logical(&dir, "tab.json", body.as_bytes())?;
         Ok(())
     }
 
@@ -111,12 +141,7 @@ mod tests {
     use crate::storage::Block;
 
     fn t(id: &str, name: &str, glyph: &str, key: &str) -> TabMeta {
-        TabMeta {
-            id: id.into(),
-            name: name.into(),
-            glyph: glyph.into(),
-            key: key.into(),
-        }
+        TabMeta::new(id, name, glyph, key)
     }
 
     #[test]

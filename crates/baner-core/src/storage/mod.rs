@@ -1,7 +1,12 @@
 //! 数据目录布局(ADR-0005):
 //! <root>/.baner/format.json
-//! <root>/tabs/<tab-id>/<排序键>~<块id>.md
+//! <root>/tabs/<tab-id>/tab.json[.age]
+//! <root>/tabs/<tab-id>/<排序键>~<块id>.md[.age]
+//!
+//! 加密 tab(存在 tab.json.age)的所有文件都以 `.age` 结尾(ADR-0004)。这里的读写接口对上层透明:
+//! 传入的都是「逻辑文件名」(不含 .age),按 tab 是否加密自动选择明文或密文。
 
+use crate::crypto::FileKey;
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -11,6 +16,7 @@ mod tabs;
 pub use tabs::TabMeta;
 
 pub const FORMAT_VERSION: u32 = 1;
+const AGE: &str = ".age";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Block {
@@ -21,6 +27,7 @@ pub struct Block {
 
 pub struct Store {
     root: PathBuf,
+    key: Option<FileKey>,
 }
 
 /// 只允许字母、数字和 `-`、`_`,防止路径穿越。
@@ -33,6 +40,46 @@ pub(crate) fn check_name(s: &str) -> Result<()> {
         return Err(Error::InvalidName(s.to_string()));
     }
     Ok(())
+}
+
+fn not_found(e: &std::io::Error) -> bool {
+    e.kind() == std::io::ErrorKind::NotFound
+}
+
+fn remove_if_exists(p: &Path) -> Result<()> {
+    match fs::remove_file(p) {
+        Ok(()) => Ok(()),
+        Err(e) if not_found(&e) => Ok(()),
+        Err(e) => Err(e.into()),
+    }
+}
+
+fn write_atomic(dir: &Path, name: &str, data: &[u8]) -> Result<()> {
+    let tmp = dir.join(format!(".{name}.tmp"));
+    fs::write(&tmp, data)?;
+    fs::rename(&tmp, dir.join(name))?;
+    Ok(())
+}
+
+/// tab 文件夹里的数据文件(跳过隐藏文件与临时文件)
+fn data_files(dir: &Path) -> Result<Vec<String>> {
+    let mut out = vec![];
+    for e in fs::read_dir(dir)? {
+        let e = e?;
+        if !e.file_type()?.is_file() {
+            continue;
+        }
+        if let Some(n) = e.file_name().to_str()
+            && !n.starts_with('.')
+        {
+            out.push(n.to_string());
+        }
+    }
+    Ok(out)
+}
+
+pub(crate) fn is_encrypted_dir(dir: &Path) -> bool {
+    dir.join(format!("tab.json{AGE}")).exists()
 }
 
 impl Store {
@@ -48,11 +95,24 @@ impl Store {
                 serde_json::to_string_pretty(&serde_json::json!({ "version": FORMAT_VERSION }))?,
             )?;
         }
-        Ok(Self { root })
+        Ok(Self { root, key: None })
     }
 
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    /// 设置本机的文件钥匙(解开主密钥后得到)。
+    pub fn set_key(&mut self, key: Option<FileKey>) {
+        self.key = key;
+    }
+
+    pub fn has_key(&self) -> bool {
+        self.key.is_some()
+    }
+
+    fn key(&self) -> Result<&FileKey> {
+        self.key.as_ref().ok_or(Error::Locked)
     }
 
     pub(crate) fn tab_dir(&self, tab: &str) -> Result<PathBuf> {
@@ -60,28 +120,71 @@ impl Store {
         Ok(self.root.join("tabs").join(tab))
     }
 
-    /// 按排序键顺序列出一个 tab 的文本块。
+    /// 读取逻辑文件:有 `.age` 版本就解密;都不存在返回 None。
+    pub(crate) fn read_logical(&self, dir: &Path, name: &str) -> Result<Option<Vec<u8>>> {
+        match fs::read(dir.join(format!("{name}{AGE}"))) {
+            Ok(c) => return Ok(Some(self.key()?.decrypt(&c)?)),
+            Err(e) if not_found(&e) => {}
+            Err(e) => return Err(e.into()),
+        }
+        match fs::read(dir.join(name)) {
+            Ok(b) => Ok(Some(b)),
+            Err(e) if not_found(&e) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// 写入逻辑文件:按 tab 是否加密写明文或密文,并删掉另一种版本。明文没变时不写盘,返回 false。
+    pub(crate) fn write_logical(&self, dir: &Path, name: &str, data: &[u8]) -> Result<bool> {
+        fs::create_dir_all(dir)?;
+        let enc = is_encrypted_dir(dir);
+        let (target, other) = if enc {
+            (format!("{name}{AGE}"), name.to_string())
+        } else {
+            (name.to_string(), format!("{name}{AGE}"))
+        };
+        let other_exists = dir.join(&other).exists();
+        if !other_exists && self.read_logical(dir, name)?.as_deref() == Some(data) {
+            return Ok(false);
+        }
+        let bytes = if enc {
+            self.key()?.encrypt(data)?
+        } else {
+            data.to_vec()
+        };
+        write_atomic(dir, &target, &bytes)?;
+        remove_if_exists(&dir.join(other))?;
+        Ok(true)
+    }
+
+    pub(crate) fn remove_logical(&self, dir: &Path, name: &str) -> Result<()> {
+        remove_if_exists(&dir.join(name))?;
+        remove_if_exists(&dir.join(format!("{name}{AGE}")))
+    }
+
+    /// 按排序键顺序列出一个 tab 的文本块。加密 tab 在本机没有钥匙时返回 `Error::Locked`。
     pub fn list_blocks(&self, tab: &str) -> Result<Vec<Block>> {
         let dir = self.tab_dir(tab)?;
         if !dir.exists() {
             return Ok(vec![]);
         }
         let mut out = vec![];
-        for entry in fs::read_dir(&dir)? {
-            let path = entry?.path();
-            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
-                continue;
-            };
-            let Some(stem) = name.strip_suffix(".md") else {
+        for name in data_files(&dir)? {
+            let logical = name.strip_suffix(AGE).unwrap_or(&name);
+            let Some(stem) = logical.strip_suffix(".md") else {
                 continue;
             };
             let Some((key, id)) = stem.split_once('~') else {
                 continue;
             };
+            if out.iter().any(|b: &Block| b.id == id) {
+                continue; // 同时存在明文与密文版本时只取一次
+            }
+            let bytes = self.read_logical(&dir, logical)?.unwrap_or_default();
             out.push(Block {
-                id: id.to_string(),
-                key: key.to_string(),
-                text: fs::read_to_string(&path)?,
+                id: id.into(),
+                key: key.into(),
+                text: String::from_utf8_lossy(&bytes).into_owned(),
             });
         }
         out.sort_by(|a, b| a.key.cmp(&b.key).then(a.id.cmp(&b.id)));
@@ -93,27 +196,64 @@ impl Store {
         check_name(&block.id)?;
         check_name(&block.key)?;
         let dir = self.tab_dir(tab)?;
-        fs::create_dir_all(&dir)?;
-        let path = dir.join(format!("{}~{}.md", block.key, block.id));
-        if fs::read_to_string(&path).ok().as_deref() == Some(block.text.as_str()) {
-            return Ok(false);
-        }
-        let tmp = dir.join(format!(".{}~{}.md.tmp", block.key, block.id));
-        fs::write(&tmp, &block.text)?;
-        fs::rename(&tmp, &path)?;
-        Ok(true)
+        self.write_logical(
+            &dir,
+            &format!("{}~{}.md", block.key, block.id),
+            block.text.as_bytes(),
+        )
     }
 
-    /// 删除一个文本块。文件不存在时不报错。
+    /// 删除一个文本块(明文与密文版本都删)。文件不存在时不报错。
     pub fn delete_block(&self, tab: &str, id: &str, key: &str) -> Result<()> {
         check_name(id)?;
         check_name(key)?;
-        let path = self.tab_dir(tab)?.join(format!("{key}~{id}.md"));
-        match fs::remove_file(path) {
-            Ok(()) => Ok(()),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(e) => Err(e.into()),
+        self.remove_logical(&self.tab_dir(tab)?, &format!("{key}~{id}.md"))
+    }
+
+    /// 打开或关闭一个 tab 的加密:把文件夹里的所有数据文件转成密文或明文。
+    pub fn set_tab_encrypted(&self, tab: &str, on: bool) -> Result<()> {
+        let key = self.key()?;
+        let dir = self.tab_dir(tab)?;
+        for name in data_files(&dir)? {
+            match (on, name.strip_suffix(AGE)) {
+                (true, None) => {
+                    let plain = fs::read(dir.join(&name))?;
+                    write_atomic(&dir, &format!("{name}{AGE}"), &key.encrypt(&plain)?)?;
+                    remove_if_exists(&dir.join(&name))?;
+                }
+                (false, Some(logical)) => {
+                    let plain = key.decrypt(&fs::read(dir.join(&name))?)?;
+                    write_atomic(&dir, logical, &plain)?;
+                    remove_if_exists(&dir.join(&name))?;
+                }
+                _ => {}
+            }
         }
+        Ok(())
+    }
+
+    /// 同步之后调用:加密 tab 里如果混进了明文文件(例如另一台设备在开启加密前的修改被合并进来),
+    /// 就把它们加密掉。本机没有钥匙时什么都不做。返回被加密的 tab。
+    pub fn enforce_encryption(&self) -> Result<Vec<String>> {
+        let mut fixed = vec![];
+        if self.key.is_none() {
+            return Ok(fixed);
+        }
+        for e in fs::read_dir(self.root.join("tabs"))? {
+            let e = e?;
+            let Some(id) = e.file_name().to_str().map(String::from) else {
+                continue;
+            };
+            if check_name(&id).is_err() || !e.file_type()?.is_dir() || !is_encrypted_dir(&e.path())
+            {
+                continue;
+            }
+            if data_files(&e.path())?.iter().any(|n| !n.ends_with(AGE)) {
+                self.set_tab_encrypted(&id, true)?;
+                fixed.push(id);
+            }
+        }
+        Ok(fixed)
     }
 }
 
@@ -164,6 +304,67 @@ mod tests {
         s.delete_block("work", "b1", "a0").unwrap();
         s.delete_block("work", "b1", "a0").unwrap();
         assert!(s.list_blocks("work").unwrap().is_empty());
+    }
+
+    fn keyed(d: &Path) -> Store {
+        let mut s = Store::open(d).unwrap();
+        s.set_key(Some(FileKey::generate()));
+        s
+    }
+
+    fn files(d: &Path, tab: &str) -> Vec<String> {
+        let mut v = data_files(&d.join("tabs").join(tab)).unwrap();
+        v.sort();
+        v
+    }
+
+    #[test]
+    fn encrypting_a_tab_converts_every_file_and_reads_back() {
+        let d = tempfile::tempdir().unwrap();
+        let s = keyed(d.path());
+        s.save_tab(&TabMeta::new("t1", "密钥", "钥", "a0")).unwrap();
+        s.save_block("t1", &b("b1", "a0", "GITHUB_TOKEN=ghp_xxx"))
+            .unwrap();
+        s.set_tab_encrypted("t1", true).unwrap();
+        assert_eq!(files(d.path(), "t1"), vec!["a0~b1.md.age", "tab.json.age"]);
+        let raw = fs::read(d.path().join("tabs/t1/a0~b1.md.age")).unwrap();
+        assert!(!raw.windows(6).any(|w| w == b"GITHUB"));
+        assert_eq!(s.list_blocks("t1").unwrap()[0].text, "GITHUB_TOKEN=ghp_xxx");
+        // 新写入的块也直接是密文
+        s.save_block("t1", &b("b2", "a1", "new")).unwrap();
+        assert!(d.path().join("tabs/t1/a1~b2.md.age").exists());
+        // 明文没变时不重写(密文每次都不同,避免无谓的提交)
+        assert!(!s.save_block("t1", &b("b2", "a1", "new")).unwrap());
+        // 关闭加密还原成明文
+        s.set_tab_encrypted("t1", false).unwrap();
+        assert_eq!(
+            files(d.path(), "t1"),
+            vec!["a0~b1.md", "a1~b2.md", "tab.json"]
+        );
+    }
+
+    #[test]
+    fn encrypted_tab_is_locked_without_key() {
+        let d = tempfile::tempdir().unwrap();
+        let s = keyed(d.path());
+        s.save_tab(&TabMeta::new("t1", "密钥", "钥", "a0")).unwrap();
+        s.save_block("t1", &b("b1", "a0", "x")).unwrap();
+        s.set_tab_encrypted("t1", true).unwrap();
+        let other = Store::open(d.path()).unwrap();
+        assert!(matches!(other.list_blocks("t1"), Err(Error::Locked)));
+        let t = &other.list_tabs().unwrap()[0];
+        assert!(t.encrypted && t.locked && t.name.is_empty());
+    }
+
+    #[test]
+    fn enforce_encryption_encrypts_stray_plain_files() {
+        let d = tempfile::tempdir().unwrap();
+        let s = keyed(d.path());
+        s.save_tab(&TabMeta::new("t1", "密钥", "钥", "a0")).unwrap();
+        s.set_tab_encrypted("t1", true).unwrap();
+        fs::write(d.path().join("tabs/t1/a5~zz.md"), "merged plaintext").unwrap();
+        assert_eq!(s.enforce_encryption().unwrap(), vec!["t1"]);
+        assert_eq!(files(d.path(), "t1"), vec!["a5~zz.md.age", "tab.json.age"]);
     }
 
     #[test]

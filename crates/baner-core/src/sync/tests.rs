@@ -116,12 +116,7 @@ fn same_line_conflict_writes_markers_into_the_block() {
 #[test]
 fn json_conflict_keeps_one_side_intact() {
     let e = env();
-    let t = |name: &str| TabMeta {
-        id: "t1".into(),
-        name: name.into(),
-        glyph: "".into(),
-        key: "a0".into(),
-    };
+    let t = |name: &str| TabMeta::new("t1", name, "", "a0");
     Store::open(&e.a).unwrap().save_tab(&t("工作")).unwrap();
     run(&e.a);
     run(&e.b);
@@ -187,4 +182,74 @@ fn second_sync_without_changes_is_a_noop() {
     run(&e.a);
     let r = run(&e.a);
     assert!(!r.committed && r.changed_tabs.is_empty() && r.conflicts.is_empty());
+}
+
+#[test]
+fn encrypted_tab_syncs_as_ciphertext_and_conflicts_keep_a_valid_version() {
+    use crate::crypto::FileKey;
+    let e = env();
+    let key = FileKey::generate();
+    let with_key = |d: &Path| {
+        let mut s = Store::open(d).unwrap();
+        s.set_key(Some(FileKey::parse(&key.export()).unwrap()));
+        s
+    };
+    let a = with_key(&e.a);
+    a.save_tab(&TabMeta::new("k1", "密钥", "钥", "a0")).unwrap();
+    a.save_block(
+        "k1",
+        &Block {
+            id: "b1".into(),
+            key: "a0".into(),
+            text: "TOKEN=1".into(),
+        },
+    )
+    .unwrap();
+    a.set_tab_encrypted("k1", true).unwrap();
+    run(&e.a);
+
+    // 仓库里只有密文
+    let repo = Repository::open_bare(&e.remote).unwrap();
+    let tree = repo
+        .find_reference("refs/heads/main")
+        .unwrap()
+        .peel_to_tree()
+        .unwrap();
+    let mut names = vec![];
+    tree.walk(git2::TreeWalkMode::PreOrder, |_, en| {
+        names.push(en.name().unwrap_or("").to_string());
+        git2::TreeWalkResult::Ok
+    })
+    .unwrap();
+    assert!(names.iter().any(|n| n == "a0~b1.md.age") && !names.iter().any(|n| n == "a0~b1.md"));
+
+    // 没有钥匙的设备:锁定
+    run(&e.b);
+    assert!(Store::open(&e.b).unwrap().list_tabs().unwrap()[0].locked);
+
+    // 两边都改同一个加密块:保留其中一版,且仍可解密
+    let b = with_key(&e.b);
+    a.save_block(
+        "k1",
+        &Block {
+            id: "b1".into(),
+            key: "a0".into(),
+            text: "TOKEN=from-a".into(),
+        },
+    )
+    .unwrap();
+    run(&e.a);
+    b.save_block(
+        "k1",
+        &Block {
+            id: "b1".into(),
+            key: "a0".into(),
+            text: "TOKEN=from-b".into(),
+        },
+    )
+    .unwrap();
+    let r = run(&e.b);
+    assert!(r.conflicts.is_empty());
+    let text = &b.list_blocks("k1").unwrap()[0].text;
+    assert!(text == "TOKEN=from-a" || text == "TOKEN=from-b", "{text}");
 }

@@ -9,7 +9,12 @@ type MockSync = {
   unsyncedTabs: string[];
   hasToken: boolean;
 };
-type Db = Record<string, Block[]> & { __tabs?: TabMeta[]; __sync?: MockSync };
+type Db = Record<string, Block[]> & {
+  __tabs?: TabMeta[];
+  __sync?: MockSync;
+  /** 模拟:本机是否有文件钥匙;仓库里是否已有 identity.age;主密钥 */
+  __crypto?: { configured: boolean; repoHasIdentity: boolean; pass?: string };
+};
 
 function read(): Db {
   try {
@@ -32,8 +37,12 @@ export function installMockIpc() {
     const a = (args ?? {}) as { tab?: string; block?: Block; id?: string };
     const db = read();
     switch (cmd) {
-      case "load_blocks":
+      case "load_blocks": {
+        const t = (db.__tabs ?? []).find((x) => x.id === a.tab);
+        if (t?.encrypted && !db.__crypto?.configured)
+          throw "locked: master key not configured on this device";
         return [...(db[a.tab ?? ""] ?? [])].sort((x, y) => x.key.localeCompare(y.key));
+      }
       case "save_block": {
         const tab = a.tab ?? "";
         const b = a.block as Block;
@@ -50,14 +59,22 @@ export function installMockIpc() {
         write(db);
         return null;
       }
-      case "list_tabs":
-        return [...(db.__tabs ?? [])].sort((x, y) => x.key.localeCompare(y.key));
+      case "list_tabs": {
+        const locked = !db.__crypto?.configured;
+        return [...(db.__tabs ?? [])]
+          .map((t) => (t.encrypted && locked ? { ...t, name: "", glyph: "⚿", key: "~", locked: true } : t))
+          .sort((x, y) => x.key.localeCompare(y.key));
+      }
       case "save_tab": {
         const t = (args as { tab: TabMeta }).tab;
         const name = t.name.trim();
         if (!name) throw new Error("invalid name: empty tab name");
         const glyph = [...(t.glyph.trim() || name)][0];
-        db.__tabs = [...(db.__tabs ?? []).filter((x) => x.id !== t.id), { ...t, name, glyph }];
+        const prev = (db.__tabs ?? []).find((x) => x.id === t.id);
+        db.__tabs = [
+          ...(db.__tabs ?? []).filter((x) => x.id !== t.id),
+          { ...t, name, glyph, encrypted: prev?.encrypted ?? false, locked: false },
+        ];
         write(db);
         return null;
       }
@@ -121,6 +138,27 @@ export function installMockIpc() {
             150,
           ),
         );
+      }
+      case "crypto_status":
+        return {
+          configured: !!db.__crypto?.configured,
+          repoHasIdentity: !!db.__crypto?.repoHasIdentity,
+        };
+      case "crypto_setup": {
+        const pass = (args as { passphrase: string }).passphrase;
+        if ([...pass].length < 8) throw "crypto: master key too short";
+        const c = db.__crypto ?? { configured: false, repoHasIdentity: false };
+        if (c.repoHasIdentity && c.pass && c.pass !== pass) throw "wrong master key";
+        db.__crypto = { configured: true, repoHasIdentity: true, pass: c.pass ?? pass };
+        write(db);
+        return { configured: true, repoHasIdentity: true };
+      }
+      case "set_tab_encrypted": {
+        const x = args as { id: string; on: boolean };
+        if (!db.__crypto?.configured) throw "locked: master key not configured on this device";
+        db.__tabs = (db.__tabs ?? []).map((t) => (t.id === x.id ? { ...t, encrypted: x.on } : t));
+        write(db);
+        return null;
       }
       case "app_ready":
         return null;

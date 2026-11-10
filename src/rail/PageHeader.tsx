@@ -25,8 +25,8 @@ export function PageHeader({ tab, canDelete, editOnMount, onUpdate, onDelete }: 
     setArmed(false);
   }, [tab]);
   useEffect(() => {
-    if (editOnMount) setEditing(true);
-  }, [editOnMount]);
+    if (editOnMount && !tab.locked) setEditing(true);
+  }, [editOnMount, tab.locked]);
   useEffect(() => {
     if (editing) nameRef.current?.select();
   }, [editing]);
@@ -87,8 +87,11 @@ export function PageHeader({ tab, canDelete, editOnMount, onUpdate, onDelete }: 
             onChange={(e) => setName(e.target.value)}
           />
         </form>
+      ) : tab.locked ? (
+        <span className="ph-name">⚿ 加密 tab</span>
       ) : (
         <button type="button" className="ph-name" title="改名" onClick={() => setEditing(true)}>
+          {tab.encrypted && <span className="muted">⚿ </span>}
           {tab.name}
         </button>
       )}

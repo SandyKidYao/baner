@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type EditorApi, TabEditor } from "../blocks/TabEditor";
-import { appReady } from "../ipc";
+import { appReady, type CryptoStatus, cryptoStatus } from "../ipc";
 import { GearIcon } from "../rail/icons";
 import { isMod, MOD } from "../rail/keys";
 import { PageHeader } from "../rail/PageHeader";
@@ -15,6 +15,18 @@ export default function App() {
   const editorApi = useRef<EditorApi | null>(null);
   const sync = useSync({ editor: editorApi, activeTab: active?.id ?? null, onTabsChanged: refresh });
   const [settings, setSettings] = useState(false);
+  const [crypto, setCrypto] = useState<CryptoStatus | null>(null);
+  const [epoch, setEpoch] = useState(0); // 加密状态变化后重建编辑器
+  useEffect(() => {
+    cryptoStatus()
+      .then(setCrypto)
+      .catch((e) => console.error("读取加密状态失败", e));
+  }, []);
+  const contentChanged = useCallback(async () => {
+    await refresh();
+    setEpoch((n) => n + 1);
+    sync.onSaved();
+  }, [refresh, sync.onSaved]);
   const [fresh, setFresh] = useState<string | null>(null); // 刚新建、需要立刻改名的 tab
   const shown = useRef(false);
 
@@ -95,7 +107,7 @@ export default function App() {
         />
         <main className="page">
           <TabEditor
-            key={active.id}
+            key={`${active.id}:${epoch}`}
             tab={active.id}
             onReady={onReady}
             autoFocus={fresh !== active.id}
@@ -104,12 +116,19 @@ export default function App() {
               sync.onSaved();
             }}
             api={editorApi}
+            onOpenSettings={() => setSettings(true)}
           />
           {settings && (
             <SettingsPanel
               tabs={tabs}
               status={sync.state.status}
               onSaved={sync.onConfigured}
+              crypto={crypto}
+              onCryptoChanged={(c) => {
+                setCrypto(c);
+                contentChanged();
+              }}
+              onTabsChanged={contentChanged}
               onClose={() => setSettings(false)}
             />
           )}

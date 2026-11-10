@@ -12,6 +12,13 @@ pub enum Error {
     Secret(String),
     #[error("git: {0}")]
     Git(String),
+    #[error("crypto: {0}")]
+    Crypto(String),
+    #[error("wrong master key")]
+    WrongMasterKey,
+    /// 加密内容,但本机还没有配置主密钥
+    #[error("locked: master key not configured on this device")]
+    Locked,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

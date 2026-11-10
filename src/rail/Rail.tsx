@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { TabMeta } from "../ipc";
-import { PlusIcon } from "./icons";
+import { LockIcon, PlusIcon } from "./icons";
 import { MOD } from "./keys";
 
 interface Props {
@@ -24,11 +24,16 @@ export function Rail({ tabs, activeId, onSelect, onCreate, footer }: Props) {
             type="button"
             className={t.id === activeId ? "tab act" : "tab"}
             aria-current={t.id === activeId ? "page" : undefined}
-            aria-label={t.name}
-            title={`${t.name}${hint}`}
+            aria-label={t.locked ? "加密 tab" : t.name}
+            title={`${t.locked ? "加密 tab" : t.name}${hint}`}
             onClick={() => onSelect(t.id)}
           >
             {t.glyph}
+            {t.encrypted && !t.locked && (
+              <i className="badge">
+                <LockIcon />
+              </i>
+            )}
           </button>
         );
       })}

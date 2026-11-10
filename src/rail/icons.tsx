@@ -61,3 +61,10 @@ export const EyeIcon = () => (
     <circle cx="10" cy="10" r="2.2" />
   </svg>
 );
+
+export const LockIcon = () => (
+  <svg {...base} aria-hidden="true">
+    <rect x="4.5" y="9" width="11" height="8" />
+    <path d="M7 9V6.5a3 3 0 0 1 6 0V9" />
+  </svg>
+);

@@ -1,7 +1,8 @@
 import { Annotation, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { type MutableRefObject, useEffect, useRef } from "react";
-import { type Block, deleteBlock, loadBlocks, saveBlock } from "../ipc";
+import { type MutableRefObject, useEffect, useRef, useState } from "react";
+import { type Block, deleteBlock, isLocked, loadBlocks, saveBlock } from "../ipc";
+import { GearIcon, LockIcon } from "../rail/icons";
 import { debounce } from "./debounce";
 import { blockExtensions } from "./editor";
 import { diff, newBlock, parse, serialize } from "./model";
@@ -21,12 +22,15 @@ interface Props {
   /** 有块落盘后调用(用于安排自动同步) */
   onSaved?: () => void;
   api?: MutableRefObject<EditorApi | null>;
+  /** 加密 tab 在本机没有主密钥时,点「⚙ →」打开配置 */
+  onOpenSettings?: () => void;
 }
 
 const external = Annotation.define<boolean>(); // 来自磁盘的替换,不触发保存
 
 /** 一个 tab 的分块编辑器:载入块文件 → 编辑 → 停止输入 300ms 后只保存有变化的块。 */
-export function TabEditor({ tab, onReady, autoFocus = true, onSaved, api }: Props) {
+export function TabEditor({ tab, onReady, autoFocus = true, onSaved, api, onOpenSettings }: Props) {
+  const [locked, setLocked] = useState(false);
   const host = useRef<HTMLDivElement>(null);
   const ready = useRef(onReady);
   ready.current = onReady;
@@ -81,7 +85,10 @@ export function TabEditor({ tab, onReady, autoFocus = true, onSaved, api }: Prop
         });
         if (focus.current) view.focus();
       })
-      .catch((e) => console.error("载入失败", e))
+      .catch((e) => {
+        if (isLocked(e)) setLocked(true);
+        else console.error("载入失败", e);
+      })
       .finally(() => ready.current?.());
 
     const isDirty = () => {
@@ -128,5 +135,19 @@ export function TabEditor({ tab, onReady, autoFocus = true, onSaved, api }: Prop
     };
   }, [tab, api]);
 
+  if (locked) {
+    return (
+      <div className="locked">
+        <span className="big">
+          <LockIcon />
+        </span>
+        <p>本机未配置主密钥</p>
+        <button type="button" className="sym" onClick={onOpenSettings} aria-label="去配置主密钥">
+          <GearIcon /> →
+        </button>
+        <p className="muted">配置一次后,进出加密 tab 不再提示</p>
+      </div>
+    );
+  }
   return <div ref={host} className="tab-editor" />;
 }

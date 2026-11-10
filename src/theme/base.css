@@ -406,3 +406,60 @@ body {
   font-size: var(--text-sm);
   margin-top: var(--space-3);
 }
+
+/* 加密 */
+.rail .tab {
+  position: relative;
+}
+.rail .tab .badge {
+  color: var(--color-rail-text);
+}
+.rail .tab.act .badge {
+  color: var(--color-rail-accent);
+}
+.togs {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+.tog:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.warn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  color: var(--color-warning);
+  font-size: var(--text-sm);
+}
+.warn svg,
+.panel .sub svg,
+.key-ok svg {
+  width: 14px;
+  height: 14px;
+}
+.panel .sub {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.key-ok {
+  margin: 0;
+}
+.locked {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  color: var(--color-text);
+}
+.locked .big svg {
+  width: 40px;
+  height: 40px;
+}
+.locked p {
+  margin: 0;
+}
