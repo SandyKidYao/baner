@@ -1,0 +1,109 @@
+/* Baner design tokens
+ * 主题:B「极客 · 锋利 · 高效」(第一版唯一主题)
+ * 结构为多主题预留:每个主题一个 [data-theme] 作用域,亮/暗各一套。
+ * 亮暗默认跟随系统;[data-mode] 可手动覆盖。
+ * 对比度见 design.md「配色」节(脚本计算)。
+ */
+
+:root,
+[data-theme="b"] {
+  --color-bg: #fbfbf8;
+  --color-surface: #ffffff;
+  --color-rail: #1f2238;
+  --color-rail-text: #e8e9f2;
+  --color-rail-accent: #f2b544;
+  --color-rail-on-accent: #1f2238;
+  --color-text: #1f2238;
+  --color-muted: #565a73;
+  --color-border: #7f839b;
+  --color-divider: #dcdde6;
+  --color-current: #fff4dd;
+  --color-primary: #8a5a00;
+  --color-on-primary: #ffffff;
+  --color-success: #2d7a3e;
+  --color-warning: #8a5a00;
+  --color-danger: #b42318;
+
+  --font-ui:
+    ui-monospace, "SF Mono", Menlo, Consolas, "Roboto Mono", "PingFang SC", "Microsoft YaHei",
+    "Noto Sans CJK SC", monospace;
+  --font-body: var(--font-ui);
+
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px; /* 桌面正文 */
+  --text-lg: 15px; /* 手机正文、页头 */
+  --text-xl: 18px;
+  --leading-body: 1.6;
+  --leading-ui: 1.3;
+  --weight-normal: 400;
+  --weight-strong: 700;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --radius: 0;
+  --border-width: 1px;
+  --focus-ring: 2px solid var(--color-primary);
+  --current-bar: 4px;
+
+  --rail-width: 54px;
+  --tab-size: 34px;
+  --icon-size: 18px;
+  --icon-stroke: 2;
+  --touch-target: 44px;
+
+  --motion-fast: 120ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-mode="light"]),
+  [data-theme="b"]:not([data-mode="light"]) {
+    --color-bg: #1f2238;
+    --color-surface: #252942;
+    --color-rail: #181a2c;
+    --color-rail-text: #e8e9f2;
+    --color-rail-accent: #f2b544;
+    --color-rail-on-accent: #1f2238;
+    --color-text: #e8e9f2;
+    --color-muted: #a3a7c2;
+    --color-border: #7a80a3;
+    --color-divider: #363a58;
+    --color-current: #2e3150;
+    --color-primary: #f2b544;
+    --color-on-primary: #1f2238;
+    --color-success: #7bd389;
+    --color-warning: #f2b544;
+    --color-danger: #ff8a7a;
+  }
+}
+
+:root[data-mode="dark"],
+[data-theme="b"][data-mode="dark"] {
+  --color-bg: #1f2238;
+  --color-surface: #252942;
+  --color-rail: #181a2c;
+  --color-rail-text: #e8e9f2;
+  --color-rail-accent: #f2b544;
+  --color-rail-on-accent: #1f2238;
+  --color-text: #e8e9f2;
+  --color-muted: #a3a7c2;
+  --color-border: #7a80a3;
+  --color-divider: #363a58;
+  --color-current: #2e3150;
+  --color-primary: #f2b544;
+  --color-on-primary: #1f2238;
+  --color-success: #7bd389;
+  --color-warning: #f2b544;
+  --color-danger: #ff8a7a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+  }
+}

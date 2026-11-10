@@ -1,0 +1,39 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: var(--weight-normal) var(--text-md) / var(--leading-body) var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+.cm-editor {
+  height: 100%;
+  font-family: var(--font-body);
+  font-size: var(--text-md);
+}
+.cm-editor.cm-focused {
+  outline: none;
+}
+.cm-content {
+  padding: var(--space-3) 0;
+  caret-color: var(--color-primary);
+}
+.cm-line {
+  padding: 0 var(--space-6) 0 48px;
+}
+.cm-cursor {
+  border-left: 2px solid var(--color-primary);
+}
