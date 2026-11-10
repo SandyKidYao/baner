@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { TabMeta } from "../ipc";
 import { PlusIcon } from "./icons";
 import { MOD } from "./keys";
@@ -7,10 +8,12 @@ interface Props {
   activeId: string | null;
   onSelect: (id: string) => void;
   onCreate: () => void;
+  /** 轨道底部:同步符号、⚙ */
+  footer?: ReactNode;
 }
 
 /** 左侧轨道:单字 tab,悬停显示全名与快捷键。 */
-export function Rail({ tabs, activeId, onSelect, onCreate }: Props) {
+export function Rail({ tabs, activeId, onSelect, onCreate, footer }: Props) {
   return (
     <nav className="rail" aria-label="tab">
       {tabs.map((t, i) => {
@@ -38,6 +41,8 @@ export function Rail({ tabs, activeId, onSelect, onCreate }: Props) {
       >
         <PlusIcon />
       </button>
+      <span className="rail-spacer" />
+      {footer}
     </nav>
   );
 }

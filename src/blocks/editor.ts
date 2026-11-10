@@ -99,6 +99,7 @@ const blockLines = ViewPlugin.fromClass(
       const cur = currentBlock(state);
       const b = new RangeSetBuilder<Decoration>();
       state.field(blocksField).forEach((blk, i) => {
+        const conflict = /^<<<<<<< /m.test(state.doc.sliceString(blk.contentFrom, blk.contentTo));
         const first = state.doc.lineAt(blk.contentFrom);
         const last = state.doc.lineAt(blk.contentTo);
         for (let n = first.number; n <= last.number; n++) {
@@ -107,6 +108,7 @@ const blockLines = ViewPlugin.fromClass(
           const isCur = blk.id === cur?.id;
           const attrs: Record<string, string> = {};
           let cls = isCur ? "blk-line blk-cur" : "blk-line";
+          if (conflict) cls += " blk-conflict";
           if (n === first.number) {
             cls += " blk-first";
             attrs["data-no"] = String(i + 1).padStart(2, "0");
@@ -221,6 +223,8 @@ const theme = EditorView.theme({
     boxShadow: "inset var(--current-bar) 0 0 var(--color-primary)",
   },
   ".blk-cur.blk-first::before": { color: "var(--color-text)", fontWeight: "var(--weight-strong)" },
+  // 冲突块:左侧加粗的警告色竖条(形状上也与普通当前块不同:更宽)
+  ".blk-conflict": { boxShadow: "inset 8px 0 0 var(--color-warning)" },
 });
 
 export function blockExtensions(): Extension[] {

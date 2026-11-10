@@ -10,6 +10,8 @@ pub enum Error {
     InvalidName(String),
     #[error("secure storage: {0}")]
     Secret(String),
+    #[error("git: {0}")]
+    Git(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

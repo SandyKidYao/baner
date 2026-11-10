@@ -1,13 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { TabEditor } from "../blocks/TabEditor";
+import { type EditorApi, TabEditor } from "../blocks/TabEditor";
 import { appReady } from "../ipc";
+import { GearIcon } from "../rail/icons";
 import { isMod, MOD } from "../rail/keys";
 import { PageHeader } from "../rail/PageHeader";
 import { Rail } from "../rail/Rail";
-import { useTabs } from "../rail/useTabs";
+import { clearPlaceholder, useTabs } from "../rail/useTabs";
+import { SettingsPanel } from "../settings/SettingsPanel";
+import { SyncButton } from "../sync/SyncButton";
+import { useSync } from "../sync/useSync";
 
 export default function App() {
-  const { tabs, active, select, create, update, remove } = useTabs();
+  const { tabs, active, select, create, update, remove, refresh } = useTabs();
+  const editorApi = useRef<EditorApi | null>(null);
+  const sync = useSync({ editor: editorApi, activeTab: active?.id ?? null, onTabsChanged: refresh });
+  const [settings, setSettings] = useState(false);
   const [fresh, setFresh] = useState<string | null>(null); // 刚新建、需要立刻改名的 tab
   const shown = useRef(false);
 
@@ -37,6 +44,9 @@ export default function App() {
       } else if (e.key.toLowerCase() === "t") {
         e.preventDefault();
         newTab();
+      } else if (e.key === ",") {
+        e.preventDefault();
+        setSettings((v) => !v);
       }
     };
     window.addEventListener("keydown", onKey, true);
@@ -47,7 +57,30 @@ export default function App() {
 
   return (
     <div className="app">
-      <Rail tabs={tabs} activeId={active.id} onSelect={select} onCreate={newTab} />
+      <Rail
+        tabs={tabs}
+        activeId={active.id}
+        onSelect={(id) => {
+          setSettings(false);
+          select(id);
+        }}
+        onCreate={newTab}
+        footer={
+          <>
+            <SyncButton state={sync.state} onSync={sync.run} />
+            <button
+              type="button"
+              className={settings ? "ib on" : "ib"}
+              aria-label="同步与加密"
+              aria-pressed={settings}
+              title={`同步与加密 ${MOD},`}
+              onClick={() => setSettings(!settings)}
+            >
+              <GearIcon />
+            </button>
+          </>
+        }
+      />
       <div className="main">
         <PageHeader
           key={active.id}
@@ -61,7 +94,25 @@ export default function App() {
           onDelete={() => remove(active.id)}
         />
         <main className="page">
-          <TabEditor key={active.id} tab={active.id} onReady={onReady} autoFocus={fresh !== active.id} />
+          <TabEditor
+            key={active.id}
+            tab={active.id}
+            onReady={onReady}
+            autoFocus={fresh !== active.id}
+            onSaved={() => {
+              clearPlaceholder(active.id);
+              sync.onSaved();
+            }}
+            api={editorApi}
+          />
+          {settings && (
+            <SettingsPanel
+              tabs={tabs}
+              status={sync.state.status}
+              onSaved={sync.onConfigured}
+              onClose={() => setSettings(false)}
+            />
+          )}
         </main>
         <footer className="keys">
           <span>

@@ -3,7 +3,13 @@ import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import type { Block, TabMeta } from "./types";
 
 const KEY = "baner-mock-store";
-type Db = Record<string, Block[]> & { __tabs?: TabMeta[] };
+type MockSync = {
+  remoteUrl: string | null;
+  username: string | null;
+  unsyncedTabs: string[];
+  hasToken: boolean;
+};
+type Db = Record<string, Block[]> & { __tabs?: TabMeta[]; __sync?: MockSync };
 
 function read(): Db {
   try {
@@ -22,7 +28,7 @@ function write(db: Db) {
 
 export function installMockIpc() {
   mockWindows("main");
-  mockIPC((cmd, args) => {
+  const handler = (cmd: string, args?: unknown): unknown => {
     const a = (args ?? {}) as { tab?: string; block?: Block; id?: string };
     const db = read();
     switch (cmd) {
@@ -60,10 +66,67 @@ export function installMockIpc() {
         delete db[a.id ?? ""];
         write(db);
         return null;
+      case "sync_status": {
+        const c = db.__sync ?? { remoteUrl: null, username: null, unsyncedTabs: [], hasToken: false };
+        return {
+          detect: { isRepo: !!c.remoteUrl, remoteUrl: c.remoteUrl, hasCommits: false },
+          config: { remoteUrl: c.remoteUrl, username: c.username, unsyncedTabs: c.unsyncedTabs },
+          hasToken: c.hasToken,
+        };
+      }
+      case "sync_configure": {
+        const x = args as { remoteUrl: string; username: string | null; token: string | null };
+        const prev = db.__sync ?? { remoteUrl: null, username: null, unsyncedTabs: [], hasToken: false };
+        db.__sync = {
+          ...prev,
+          remoteUrl: x.remoteUrl.trim(),
+          username: x.username,
+          hasToken: x.token === null ? prev.hasToken : x.token.trim() !== "",
+        };
+        write(db);
+        return handler("sync_status", {});
+      }
+      case "set_tab_synced": {
+        const x = args as { id: string; synced: boolean };
+        const c = db.__sync ?? { remoteUrl: null, username: null, unsyncedTabs: [], hasToken: false };
+        c.unsyncedTabs = c.unsyncedTabs.filter((t) => t !== x.id);
+        if (!x.synced) c.unsyncedTabs.push(x.id);
+        db.__sync = c;
+        write(db);
+        return { remoteUrl: c.remoteUrl, username: c.username, unsyncedTabs: c.unsyncedTabs };
+      }
+      case "sync_now": {
+        // 测试可设置 localStorage["baner-mock-sync-error"] 来模拟失败
+        const err = localStorage.getItem("baner-mock-sync-error");
+        localStorage.setItem(
+          "baner-mock-sync-count",
+          String(Number(localStorage.getItem("baner-mock-sync-count")) + 1),
+        );
+        // 测试可设置 localStorage["baner-mock-sync-incoming"] = {tabs, blocks} 模拟远端带来的内容
+        const incoming = localStorage.getItem("baner-mock-sync-incoming");
+        let changedTabs: string[] = [];
+        if (!err && incoming) {
+          const x = JSON.parse(incoming) as { tabs: TabMeta[]; blocks: Record<string, Block[]> };
+          const cur = read();
+          cur.__tabs = [...(cur.__tabs ?? []), ...x.tabs];
+          for (const [t, bs] of Object.entries(x.blocks)) cur[t] = bs;
+          write(cur);
+          localStorage.removeItem("baner-mock-sync-incoming");
+          changedTabs = x.tabs.map((t) => t.id);
+        }
+        return new Promise((resolve, reject) =>
+          setTimeout(
+            () =>
+              err ? reject(err) : resolve({ committed: true, changedTabs, conflicts: [], pushed: true }),
+            150,
+          ),
+        );
+      }
       case "app_ready":
         return null;
       default:
         throw new Error(`mock: unknown command ${cmd}`);
     }
-  });
+  };
+  mockIPC((cmd, args) => handler(cmd, args));
 }
