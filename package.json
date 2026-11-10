@@ -17,10 +17,12 @@
     "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.11.1",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
     "@tauri-apps/api": "^2",
     "codemirror": "^6.0.2",
+    "fractional-indexing": "^4.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

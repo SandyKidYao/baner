@@ -36,6 +36,13 @@ export function installMockIpc() {
         write(db);
         return true;
       }
+      case "delete_block": {
+        const tab = a.tab ?? "";
+        const id = (args as { id?: string }).id;
+        db[tab] = (db[tab] ?? []).filter((x) => x.id !== id);
+        write(db);
+        return null;
+      }
       case "app_ready":
         return null;
       default:

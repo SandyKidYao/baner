@@ -100,6 +100,18 @@ impl Store {
         fs::rename(&tmp, &path)?;
         Ok(true)
     }
+
+    /// 删除一个文本块。文件不存在时不报错。
+    pub fn delete_block(&self, tab: &str, id: &str, key: &str) -> Result<()> {
+        check_name(id)?;
+        check_name(key)?;
+        let path = self.tab_dir(tab)?.join(format!("{key}~{id}.md"));
+        match fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(e.into()),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -139,6 +151,16 @@ mod tests {
         let s = Store::open(d.path()).unwrap();
         assert!(s.save_block("work", &b("b1", "a0", "x")).unwrap());
         assert!(!s.save_block("work", &b("b1", "a0", "x")).unwrap());
+    }
+
+    #[test]
+    fn delete_removes_file_and_is_idempotent() {
+        let d = tempfile::tempdir().unwrap();
+        let s = Store::open(d.path()).unwrap();
+        s.save_block("work", &b("b1", "a0", "x")).unwrap();
+        s.delete_block("work", "b1", "a0").unwrap();
+        s.delete_block("work", "b1", "a0").unwrap();
+        assert!(s.list_blocks("work").unwrap().is_empty());
     }
 
     #[test]

@@ -23,6 +23,11 @@ fn save_block(state: State<AppState>, tab: String, block: Block) -> CmdResult<bo
     state.store.lock().unwrap().save_block(&tab, &block)
 }
 
+#[tauri::command]
+fn delete_block(state: State<AppState>, tab: String, id: String, key: String) -> CmdResult<()> {
+    state.store.lock().unwrap().delete_block(&tab, &id, &key)
+}
+
 /// 界面内容就绪后调用:再显示窗口,避免空白闪烁。
 #[tauri::command]
 fn app_ready(window: tauri::WebviewWindow) {
@@ -47,7 +52,12 @@ pub fn run() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![load_blocks, save_block, app_ready])
+        .invoke_handler(tauri::generate_handler![
+            load_blocks,
+            save_block,
+            delete_block,
+            app_ready
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -6,4 +6,6 @@ export type { Block } from "./types";
 
 export const loadBlocks = (tab: string) => invoke<Block[]>("load_blocks", { tab });
 export const saveBlock = (tab: string, block: Block) => invoke<boolean>("save_block", { tab, block });
+export const deleteBlock = (tab: string, block: Pick<Block, "id" | "key">) =>
+  invoke<void>("delete_block", { tab, id: block.id, key: block.key });
 export const appReady = () => invoke<void>("app_ready");
