@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+mod tabs;
+pub use tabs::TabMeta;
+
 pub const FORMAT_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -21,7 +24,7 @@ pub struct Store {
 }
 
 /// 只允许字母、数字和 `-`、`_`,防止路径穿越。
-fn check_name(s: &str) -> Result<()> {
+pub(crate) fn check_name(s: &str) -> Result<()> {
     if s.is_empty()
         || !s
             .chars()
@@ -52,7 +55,7 @@ impl Store {
         &self.root
     }
 
-    fn tab_dir(&self, tab: &str) -> Result<PathBuf> {
+    pub(crate) fn tab_dir(&self, tab: &str) -> Result<PathBuf> {
         check_name(tab)?;
         Ok(self.root.join("tabs").join(tab))
     }

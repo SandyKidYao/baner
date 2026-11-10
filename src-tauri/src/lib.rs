@@ -1,7 +1,7 @@
 //! Tauri 外壳:只注册命令,逻辑全部交给 baner-core。
 
 use baner_core::secrets::SecretStore;
-use baner_core::storage::{Block, Store};
+use baner_core::storage::{Block, Store, TabMeta};
 use std::sync::Mutex;
 use tauri::{Manager, State};
 
@@ -26,6 +26,21 @@ fn save_block(state: State<AppState>, tab: String, block: Block) -> CmdResult<bo
 #[tauri::command]
 fn delete_block(state: State<AppState>, tab: String, id: String, key: String) -> CmdResult<()> {
     state.store.lock().unwrap().delete_block(&tab, &id, &key)
+}
+
+#[tauri::command]
+fn list_tabs(state: State<AppState>) -> CmdResult<Vec<TabMeta>> {
+    state.store.lock().unwrap().list_tabs()
+}
+
+#[tauri::command]
+fn save_tab(state: State<AppState>, tab: TabMeta) -> CmdResult<()> {
+    state.store.lock().unwrap().save_tab(&tab)
+}
+
+#[tauri::command]
+fn delete_tab(state: State<AppState>, id: String) -> CmdResult<()> {
+    state.store.lock().unwrap().delete_tab(&id)
 }
 
 /// 界面内容就绪后调用:再显示窗口,避免空白闪烁。
@@ -56,6 +71,9 @@ pub fn run() {
             load_blocks,
             save_block,
             delete_block,
+            list_tabs,
+            save_tab,
+            delete_tab,
             app_ready
         ])
         .run(tauri::generate_context!())

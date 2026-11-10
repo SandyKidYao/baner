@@ -9,13 +9,15 @@ import { diff, newBlock, parse, serialize } from "./model";
 interface Props {
   tab: string;
   onReady?: () => void;
+  autoFocus?: boolean;
 }
 
 /** 一个 tab 的分块编辑器:载入块文件 → 编辑 → 停止输入 300ms 后只保存有变化的块。 */
-export function TabEditor({ tab, onReady }: Props) {
+export function TabEditor({ tab, onReady, autoFocus = true }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const ready = useRef(onReady);
   ready.current = onReady;
+  const focus = useRef(autoFocus);
 
   useEffect(() => {
     let view: EditorView | undefined;
@@ -60,7 +62,7 @@ export function TabEditor({ tab, onReady }: Props) {
             ],
           }),
         });
-        view.focus();
+        if (focus.current) view.focus();
       })
       .catch((e) => console.error("载入失败", e))
       .finally(() => ready.current?.());

@@ -25,8 +25,120 @@ body {
 /* 布局 */
 .app {
   display: flex;
-  flex-direction: column;
   height: 100%;
+}
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 侧边轨道:亮暗两种模式下都是深靛色 */
+.rail {
+  width: var(--rail-width);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  background: var(--color-rail);
+  overflow-y: auto;
+}
+.rail .tab {
+  width: var(--tab-size);
+  height: var(--tab-size);
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-rail-text);
+  font: var(--weight-normal) 14px var(--font-ui);
+  cursor: pointer;
+}
+.rail .tab:hover {
+  border-color: var(--color-rail-text);
+}
+.rail .tab.act {
+  background: var(--color-rail-accent);
+  color: var(--color-rail-on-accent);
+  font-weight: var(--weight-strong);
+}
+.rail .tab.add {
+  border: var(--border-width) dashed var(--color-rail-text);
+}
+.rail :focus-visible {
+  outline: 2px solid var(--color-rail-accent);
+}
+
+/* 页头 */
+.ph {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: var(--space-1) var(--space-4) var(--space-1) var(--space-3);
+  border-bottom: var(--border-width) solid var(--color-divider);
+}
+.ph-name {
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font: var(--weight-strong) var(--text-md) var(--font-ui);
+  padding: var(--space-1);
+  cursor: text;
+}
+.ph-edit {
+  display: flex;
+  gap: var(--space-2);
+}
+.ph-edit input {
+  font: var(--weight-normal) var(--text-md) var(--font-ui);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 3px 6px;
+}
+.ph-edit .ph-glyph {
+  width: 3ch;
+  text-align: center;
+}
+.ph-edit input:focus {
+  outline: var(--focus-ring);
+  outline-offset: 0;
+}
+.ph-tools {
+  display: flex;
+  gap: var(--space-1);
+}
+.sym {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 30px;
+  height: 30px;
+  justify-content: center;
+  padding: 0 var(--space-1);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--color-muted);
+  font: var(--text-sm) var(--font-ui);
+  cursor: pointer;
+}
+.sym:hover {
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+.sym.danger.armed {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
 }
 .page {
   flex: 1;
