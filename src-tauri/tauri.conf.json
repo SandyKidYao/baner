@@ -37,9 +37,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "macOS": {
-      "signingIdentity": "Baner Local Signing"
-    },
     "license": "MIT"
   }
 }

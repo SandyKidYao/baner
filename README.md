@@ -4,14 +4,13 @@
 
 > 状态:MVP 开发中(macOS)。
 
-## 三步跑起来(macOS)
+## 两步跑起来(macOS)
 
 需要 Node 22+、Rust stable、Xcode 命令行工具。
 
 ```bash
 npm install                    # 1. 安装依赖(同时启用提交前钩子)
-scripts/setup-signing.sh       # 2. 一次性创建本机签名证书「Baner Local Signing」
-npm run tauri dev              # 3. 启动开发版
+npm run tauri dev              # 2. 启动开发版
 ```
 
 打包正式版:`npm run tauri build`,产物在 `target/release/bundle/macos/Baner.app`。
@@ -28,10 +27,10 @@ scripts/check.sh --fast        # 只做格式、lint、类型(提交前钩子用
 | 目录 | 内容 |
 |---|---|
 | `src/` | 界面层(React + TypeScript + CodeMirror 6) |
-| `crates/baner-core/` | 核心逻辑(纯 Rust):存储、加密、git 同步、系统安全存储 |
+| `crates/baner-core/` | 核心逻辑(纯 Rust):存储、加密、git 同步、本机密钥文件 |
 | `src-tauri/` | Tauri 外壳,只注册命令 |
 | `tests/e2e/` | 浏览器内的界面冒烟测试(核心层命令被模拟) |
-| `scripts/` | 检查、签名脚本 |
+| `scripts/` | 检查脚本 |
 
 ## 许可证
 
