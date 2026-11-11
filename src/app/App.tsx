@@ -146,6 +146,14 @@ export default function App() {
           <span>
             <kbd>{MOD}T</kbd> 新 tab
           </span>
+          <button
+            type="button"
+            className="keys-btn"
+            title={`插入图块 ${MOD}D`}
+            onClick={() => editorApi.current?.insertDrawing()}
+          >
+            <kbd>{MOD}D</kbd>◇ 图块
+          </button>
         </footer>
       </div>
     </div>

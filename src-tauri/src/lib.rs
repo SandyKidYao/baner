@@ -3,7 +3,7 @@
 use baner_core::config::{ConfigStore, SyncConfig};
 use baner_core::crypto::{self, FileKey};
 use baner_core::secrets::SecretStore;
-use baner_core::storage::{Block, Store, TabMeta};
+use baner_core::storage::{Block, Drawing, Store, TabMeta};
 use baner_core::sync::{self, Credentials, Detect, SyncReport};
 use serde::Serialize;
 use std::path::PathBuf;
@@ -54,6 +54,31 @@ fn save_block(state: State<AppState>, tab: String, block: Block) -> CmdResult<bo
 #[tauri::command]
 fn delete_block(state: State<AppState>, tab: String, id: String, key: String) -> CmdResult<()> {
     state.store.lock().unwrap().delete_block(&tab, &id, &key)
+}
+
+#[tauri::command]
+fn load_drawing(
+    state: State<AppState>,
+    tab: String,
+    id: String,
+    key: String,
+) -> CmdResult<Option<Drawing>> {
+    state.store.lock().unwrap().load_drawing(&tab, &id, &key)
+}
+
+#[tauri::command]
+fn save_drawing(
+    state: State<AppState>,
+    tab: String,
+    id: String,
+    key: String,
+    drawing: Drawing,
+) -> CmdResult<bool> {
+    state
+        .store
+        .lock()
+        .unwrap()
+        .save_drawing(&tab, &id, &key, &drawing)
 }
 
 #[tauri::command]
@@ -216,6 +241,8 @@ pub fn run() {
             load_blocks,
             save_block,
             delete_block,
+            load_drawing,
+            save_drawing,
             list_tabs,
             save_tab,
             delete_tab,

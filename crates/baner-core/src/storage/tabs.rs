@@ -161,15 +161,8 @@ mod tests {
     fn legacy_folder_without_tab_json_is_listed() {
         let d = tempfile::tempdir().unwrap();
         let s = Store::open(d.path()).unwrap();
-        s.save_block(
-            "default",
-            &Block {
-                id: "b0".into(),
-                key: "a0".into(),
-                text: "x".into(),
-            },
-        )
-        .unwrap();
+        s.save_block("default", &Block::text("b0", "a0", "x"))
+            .unwrap();
         assert_eq!(
             s.list_tabs().unwrap(),
             vec![t("default", "default", "d", "a0")]
@@ -181,15 +174,7 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         let s = Store::open(d.path()).unwrap();
         s.save_tab(&t("t1", "工作", "工", "a0")).unwrap();
-        s.save_block(
-            "t1",
-            &Block {
-                id: "b0".into(),
-                key: "a0".into(),
-                text: "x".into(),
-            },
-        )
-        .unwrap();
+        s.save_block("t1", &Block::text("b0", "a0", "x")).unwrap();
         s.delete_tab("t1").unwrap();
         assert!(s.list_tabs().unwrap().is_empty());
         assert!(s.delete_tab("../x").is_err());

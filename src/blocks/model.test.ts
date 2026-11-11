@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { diff, isValidDoc, keyBetween, MARK, newBlock, parse, serialize } from "./model";
+import { DRAW_LINE, diff, isValidDoc, keyBetween, MARK, newBlock, parse, serialize } from "./model";
 
 const B = (id: string, key: string, text: string) => ({ id, key, text });
+const D = (id: string, key: string) => ({ id, key, text: "", kind: "draw" as const });
 
 describe("serialize / parse", () => {
   it("往返不丢内容,包括空块和结尾换行", () => {
@@ -54,5 +55,28 @@ describe("diff", () => {
   });
   it("空的新块暂不落盘", () => {
     expect(diff(saved, [...saved.values(), B("cc", "a2", "")]).upserts).toEqual([]);
+  });
+});
+
+describe("图块", () => {
+  it("在文档里是一行占位,往返后仍是图块", () => {
+    const blocks = [B("aa", "a0", "x"), D("dd", "a1"), B("cc", "a2", "")];
+    const doc = serialize(blocks);
+    expect(doc).toContain(`\n${DRAW_LINE}\n`);
+    expect(parse(doc)).toEqual(blocks);
+    expect(isValidDoc(doc)).toBe(true);
+    expect(isValidDoc(serialize([D("dd", "a0")]))).toBe(true);
+  });
+  it("拒绝改动占位行:在它后面输入、并入其他块或孤立出现", () => {
+    const doc = serialize([D("dd", "a0"), B("cc", "a1", "y")]);
+    expect(isValidDoc(doc.replace(DRAW_LINE, `${DRAW_LINE}x`))).toBe(false);
+    expect(isValidDoc(doc.replace(DRAW_LINE, `${DRAW_LINE}\nx`))).toBe(false);
+    expect(isValidDoc(serialize([B("aa", "a0", `x\n${DRAW_LINE}`)]))).toBe(false);
+  });
+  it("diff:新出现的图块列为写入,已保存的图块不因文本而写入,消失时删除", () => {
+    const saved = new Map([["dd", D("dd", "a0")]]);
+    expect(diff(new Map(), [D("dd", "a0")]).upserts).toEqual([D("dd", "a0")]);
+    expect(diff(saved, [D("dd", "a0")])).toEqual({ upserts: [], deletes: [] });
+    expect(diff(saved, []).deletes).toEqual([D("dd", "a0")]);
   });
 });

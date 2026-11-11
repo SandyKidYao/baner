@@ -23,7 +23,34 @@ pub struct Block {
     pub id: String,
     pub key: String,
     pub text: String,
+    /// "text" 或 "draw"(图块;内容通过 load_drawing 单独读取)
+    #[serde(default = "text_kind")]
+    pub kind: String,
 }
+
+fn text_kind() -> String {
+    "text".into()
+}
+
+impl Block {
+    pub fn text(id: &str, key: &str, text: &str) -> Self {
+        Self {
+            id: id.into(),
+            key: key.into(),
+            text: text.into(),
+            kind: text_kind(),
+        }
+    }
+}
+
+/// 图块:Excalidraw 场景(事实来源)与 SVG 预览(ADR-0002)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Drawing {
+    pub scene: String,
+    pub svg: String,
+}
+
+const DRAW_EXTS: [&str; 2] = [".excalidraw", ".svg"];
 
 pub struct Store {
     root: PathBuf,
@@ -162,7 +189,8 @@ impl Store {
         remove_if_exists(&dir.join(format!("{name}{AGE}")))
     }
 
-    /// 按排序键顺序列出一个 tab 的文本块。加密 tab 在本机没有钥匙时返回 `Error::Locked`。
+    /// 按排序键顺序列出一个 tab 的块。图块只给出位置(kind = "draw",text 为空),
+    /// 内容用 `load_drawing` 读取。加密 tab 在本机没有钥匙时返回 `Error::Locked`。
     pub fn list_blocks(&self, tab: &str) -> Result<Vec<Block>> {
         let dir = self.tab_dir(tab)?;
         if !dir.exists() {
@@ -171,8 +199,13 @@ impl Store {
         let mut out = vec![];
         for name in data_files(&dir)? {
             let logical = name.strip_suffix(AGE).unwrap_or(&name);
-            let Some(stem) = logical.strip_suffix(".md") else {
-                continue;
+            let (stem, draw) = match (
+                logical.strip_suffix(".md"),
+                logical.strip_suffix(".excalidraw"),
+            ) {
+                (Some(s), _) => (s, false),
+                (_, Some(s)) => (s, true),
+                _ => continue,
             };
             let Some((key, id)) = stem.split_once('~') else {
                 continue;
@@ -180,12 +213,18 @@ impl Store {
             if out.iter().any(|b: &Block| b.id == id) {
                 continue; // 同时存在明文与密文版本时只取一次
             }
+            if draw {
+                if is_encrypted_dir(&dir) {
+                    self.key()?; // 与文本块一致:没有钥匙时报 Locked
+                }
+                out.push(Block {
+                    kind: "draw".into(),
+                    ..Block::text(id, key, "")
+                });
+                continue;
+            }
             let bytes = self.read_logical(&dir, logical)?.unwrap_or_default();
-            out.push(Block {
-                id: id.into(),
-                key: key.into(),
-                text: String::from_utf8_lossy(&bytes).into_owned(),
-            });
+            out.push(Block::text(id, key, &String::from_utf8_lossy(&bytes)));
         }
         out.sort_by(|a, b| a.key.cmp(&b.key).then(a.id.cmp(&b.id)));
         Ok(out)
@@ -203,11 +242,41 @@ impl Store {
         )
     }
 
-    /// 删除一个文本块(明文与密文版本都删)。文件不存在时不报错。
+    /// 删除一个块(文本或图块,明文与密文版本都删)。文件不存在时不报错。
     pub fn delete_block(&self, tab: &str, id: &str, key: &str) -> Result<()> {
         check_name(id)?;
         check_name(key)?;
-        self.remove_logical(&self.tab_dir(tab)?, &format!("{key}~{id}.md"))
+        let dir = self.tab_dir(tab)?;
+        self.remove_logical(&dir, &format!("{key}~{id}.md"))?;
+        for ext in DRAW_EXTS {
+            self.remove_logical(&dir, &format!("{key}~{id}{ext}"))?;
+        }
+        Ok(())
+    }
+
+    pub fn load_drawing(&self, tab: &str, id: &str, key: &str) -> Result<Option<Drawing>> {
+        check_name(id)?;
+        check_name(key)?;
+        let dir = self.tab_dir(tab)?;
+        let Some(scene) = self.read_logical(&dir, &format!("{key}~{id}.excalidraw"))? else {
+            return Ok(None);
+        };
+        let svg = self
+            .read_logical(&dir, &format!("{key}~{id}.svg"))?
+            .unwrap_or_default();
+        Ok(Some(Drawing {
+            scene: String::from_utf8_lossy(&scene).into_owned(),
+            svg: String::from_utf8_lossy(&svg).into_owned(),
+        }))
+    }
+
+    pub fn save_drawing(&self, tab: &str, id: &str, key: &str, d: &Drawing) -> Result<bool> {
+        check_name(id)?;
+        check_name(key)?;
+        let dir = self.tab_dir(tab)?;
+        let a = self.write_logical(&dir, &format!("{key}~{id}.excalidraw"), d.scene.as_bytes())?;
+        let b = self.write_logical(&dir, &format!("{key}~{id}.svg"), d.svg.as_bytes())?;
+        Ok(a || b)
     }
 
     /// 打开或关闭一个 tab 的加密:把文件夹里的所有数据文件转成密文或明文。
@@ -262,11 +331,7 @@ mod tests {
     use super::*;
 
     fn b(id: &str, key: &str, text: &str) -> Block {
-        Block {
-            id: id.into(),
-            key: key.into(),
-            text: text.into(),
-        }
+        Block::text(id, key, text)
     }
 
     #[test]
@@ -306,6 +371,33 @@ mod tests {
         assert!(s.list_blocks("work").unwrap().is_empty());
     }
 
+    #[test]
+    fn drawings_roundtrip_list_and_delete() {
+        let d = tempfile::tempdir().unwrap();
+        let s = Store::open(d.path()).unwrap();
+        s.save_block("t1", &b("b1", "a0", "text")).unwrap();
+        let dr = Drawing {
+            scene: r#"{"elements":[]}"#.into(),
+            svg: "<svg/>".into(),
+        };
+        assert!(s.save_drawing("t1", "d1", "a1", &dr).unwrap());
+        assert!(!s.save_drawing("t1", "d1", "a1", &dr).unwrap());
+        let kinds: Vec<_> = s
+            .list_blocks("t1")
+            .unwrap()
+            .into_iter()
+            .map(|b| (b.id, b.kind))
+            .collect();
+        assert_eq!(
+            kinds,
+            vec![("b1".into(), "text".into()), ("d1".into(), "draw".into())]
+        );
+        assert_eq!(s.load_drawing("t1", "d1", "a1").unwrap(), Some(dr));
+        s.delete_block("t1", "d1", "a1").unwrap();
+        assert_eq!(s.list_blocks("t1").unwrap().len(), 1);
+        assert!(!d.path().join("tabs/t1/a1~d1.svg").exists());
+    }
+
     fn keyed(d: &Path) -> Store {
         let mut s = Store::open(d).unwrap();
         s.set_key(Some(FileKey::generate()));
@@ -341,6 +433,35 @@ mod tests {
             files(d.path(), "t1"),
             vec!["a0~b1.md", "a1~b2.md", "tab.json"]
         );
+    }
+
+    #[test]
+    fn drawings_in_encrypted_tab_are_ciphertext_and_locked_without_key() {
+        let d = tempfile::tempdir().unwrap();
+        let s = keyed(d.path());
+        s.save_tab(&TabMeta::new("t1", "密钥", "钥", "a0")).unwrap();
+        let dr = Drawing {
+            scene: r#"{"elements":[{"text":"SECRET"}]}"#.into(),
+            svg: "<svg>SECRET</svg>".into(),
+        };
+        s.save_drawing("t1", "d1", "a0", &dr).unwrap();
+        s.set_tab_encrypted("t1", true).unwrap();
+        assert_eq!(
+            files(d.path(), "t1"),
+            vec!["a0~d1.excalidraw.age", "a0~d1.svg.age", "tab.json.age"]
+        );
+        for f in ["a0~d1.excalidraw.age", "a0~d1.svg.age"] {
+            let raw = fs::read(d.path().join("tabs/t1").join(f)).unwrap();
+            assert!(!raw.windows(6).any(|w| w == b"SECRET"));
+        }
+        assert_eq!(s.list_blocks("t1").unwrap()[0].kind, "draw");
+        assert_eq!(s.load_drawing("t1", "d1", "a0").unwrap(), Some(dr));
+        let other = Store::open(d.path()).unwrap();
+        assert!(matches!(other.list_blocks("t1"), Err(Error::Locked)));
+        assert!(matches!(
+            other.load_drawing("t1", "d1", "a0"),
+            Err(Error::Locked)
+        ));
     }
 
     #[test]

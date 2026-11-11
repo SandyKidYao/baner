@@ -1,6 +1,6 @@
 // 浏览器内测试用:用内存(加 localStorage)模拟核心层命令,不需要启动 Tauri。
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
-import type { Block, TabMeta } from "./types";
+import type { Block, Drawing, TabMeta } from "./types";
 
 const KEY = "baner-mock-store";
 type MockSync = {
@@ -14,6 +14,8 @@ type Db = Record<string, Block[]> & {
   __sync?: MockSync;
   /** 模拟:本机是否有文件钥匙;仓库里是否已有 identity.age;主密钥 */
   __crypto?: { configured: boolean; repoHasIdentity: boolean; pass?: string };
+  /** 图块内容,键为 "<tab>/<块id>" */
+  __drawings?: Record<string, Drawing>;
 };
 
 function read(): Db {
@@ -56,8 +58,26 @@ export function installMockIpc() {
         const tab = a.tab ?? "";
         const id = (args as { id?: string }).id;
         db[tab] = (db[tab] ?? []).filter((x) => x.id !== id);
+        if (db.__drawings) delete db.__drawings[`${tab}/${id}`];
         write(db);
         return null;
+      }
+      case "load_drawing": {
+        const x = args as { tab: string; id: string };
+        const t = (db.__tabs ?? []).find((y) => y.id === x.tab);
+        if (t?.encrypted && !db.__crypto?.configured)
+          throw "locked: master key not configured on this device";
+        return db.__drawings?.[`${x.tab}/${x.id}`] ?? null;
+      }
+      case "save_drawing": {
+        const x = args as { tab: string; id: string; key: string; drawing: Drawing };
+        db.__drawings = { ...db.__drawings, [`${x.tab}/${x.id}`]: x.drawing };
+        db[x.tab] = [
+          ...(db[x.tab] ?? []).filter((y) => y.id !== x.id),
+          { id: x.id, key: x.key, text: "", kind: "draw" },
+        ];
+        write(db);
+        return true;
       }
       case "list_tabs": {
         const locked = !db.__crypto?.configured;

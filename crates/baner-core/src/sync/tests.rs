@@ -36,14 +36,7 @@ fn run(d: &Path) -> SyncReport {
 fn put(d: &Path, tab: &str, id: &str, text: &str) {
     Store::open(d)
         .unwrap()
-        .save_block(
-            tab,
-            &Block {
-                id: id.into(),
-                key: "a0".into(),
-                text: text.into(),
-            },
-        )
+        .save_block(tab, &Block::text(id, "a0", text))
         .unwrap();
 }
 fn get(d: &Path, tab: &str) -> Vec<String> {
@@ -196,15 +189,8 @@ fn encrypted_tab_syncs_as_ciphertext_and_conflicts_keep_a_valid_version() {
     };
     let a = with_key(&e.a);
     a.save_tab(&TabMeta::new("k1", "密钥", "钥", "a0")).unwrap();
-    a.save_block(
-        "k1",
-        &Block {
-            id: "b1".into(),
-            key: "a0".into(),
-            text: "TOKEN=1".into(),
-        },
-    )
-    .unwrap();
+    a.save_block("k1", &Block::text("b1", "a0", "TOKEN=1"))
+        .unwrap();
     a.set_tab_encrypted("k1", true).unwrap();
     run(&e.a);
 
@@ -229,25 +215,11 @@ fn encrypted_tab_syncs_as_ciphertext_and_conflicts_keep_a_valid_version() {
 
     // 两边都改同一个加密块:保留其中一版,且仍可解密
     let b = with_key(&e.b);
-    a.save_block(
-        "k1",
-        &Block {
-            id: "b1".into(),
-            key: "a0".into(),
-            text: "TOKEN=from-a".into(),
-        },
-    )
-    .unwrap();
+    a.save_block("k1", &Block::text("b1", "a0", "TOKEN=from-a"))
+        .unwrap();
     run(&e.a);
-    b.save_block(
-        "k1",
-        &Block {
-            id: "b1".into(),
-            key: "a0".into(),
-            text: "TOKEN=from-b".into(),
-        },
-    )
-    .unwrap();
+    b.save_block("k1", &Block::text("b1", "a0", "TOKEN=from-b"))
+        .unwrap();
     let r = run(&e.b);
     assert!(r.conflicts.is_empty());
     let text = &b.list_blocks("k1").unwrap()[0].text;

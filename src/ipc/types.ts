@@ -2,6 +2,14 @@ export interface Block {
   id: string;
   key: string;
   text: string;
+  /** 缺省为 "text";图块的 text 为空,内容用 loadDrawing 读取 */
+  kind?: "text" | "draw";
+}
+
+/** 图块:Excalidraw 场景 JSON(事实来源)与 SVG 预览(ADR-0002) */
+export interface Drawing {
+  scene: string;
+  svg: string;
 }
 
 export interface TabMeta {

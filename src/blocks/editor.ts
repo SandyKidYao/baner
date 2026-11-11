@@ -1,6 +1,13 @@
 // CodeMirror 6 扩展:把一个文档显示成多个块。
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
-import { EditorSelection, EditorState, type Extension, RangeSetBuilder, StateField } from "@codemirror/state";
+import {
+  EditorSelection,
+  EditorState,
+  type Extension,
+  Facet,
+  RangeSetBuilder,
+  StateField,
+} from "@codemirror/state";
 import {
   Decoration,
   type DecorationSet,
@@ -10,7 +17,7 @@ import {
   type ViewUpdate,
   WidgetType,
 } from "@codemirror/view";
-import { header, isValidDoc, MARK, newBlock, parseHeader } from "./model";
+import { DRAW_LINE, header, isControlLine, isValidDoc, MARK, newBlock, parseHeader } from "./model";
 
 /** 一个块在文档中的位置。headerFrom..headerTo 是分隔行;contentFrom..contentTo 是正文。 */
 export interface BlockRange {
@@ -20,7 +27,17 @@ export interface BlockRange {
   headerTo: number;
   contentFrom: number;
   contentTo: number;
+  /** 图块:正文是一行占位,整块显示成预览图或 Excalidraw */
+  draw: boolean;
 }
+
+/** 图块的界面由外部提供(src/draw),这里只负责在文档里占位和插入。 */
+export interface DrawHooks {
+  widget: (b: Pick<BlockRange, "id" | "key">, first: boolean) => WidgetType;
+  /** 新插入的图块:直接打开编辑 */
+  inserted: (id: string) => void;
+}
+export const drawHooks = Facet.define<DrawHooks, DrawHooks | null>({ combine: (v) => v[0] ?? null });
 
 export function scanBlocks(state: EditorState): BlockRange[] {
   const out: BlockRange[] = [];
@@ -33,8 +50,16 @@ export function scanBlocks(state: EditorState): BlockRange[] {
     const prev = out[out.length - 1];
     if (prev) prev.contentTo = Math.max(prev.contentFrom, line.from - 1);
     const contentFrom = Math.min(line.to + 1, doc.length);
-    out.push({ ...h, headerFrom: line.from, headerTo: line.to, contentFrom, contentTo: doc.length });
+    out.push({
+      ...h,
+      headerFrom: line.from,
+      headerTo: line.to,
+      contentFrom,
+      contentTo: doc.length,
+      draw: false,
+    });
   }
+  for (const b of out) b.draw = doc.sliceString(b.contentFrom, b.contentTo) === DRAW_LINE;
   return out;
 }
 
@@ -78,8 +103,22 @@ const separators = StateField.define<DecorationSet>({
 
 function buildSeparators(state: EditorState): DecorationSet {
   const b = new RangeSetBuilder<Decoration>();
+  const hooks = state.facet(drawHooks);
   state.field(blocksField).forEach((blk, i) => {
-    b.add(blk.headerFrom, blk.headerTo, Decoration.replace({ widget: new Separator(i === 0), block: true }));
+    if (blk.draw && hooks) {
+      // 分隔行和占位行一起换成图块(图块自己画分隔线)
+      b.add(
+        blk.headerFrom,
+        blk.contentTo,
+        Decoration.replace({ widget: hooks.widget(blk, i === 0), block: true }),
+      );
+    } else {
+      b.add(
+        blk.headerFrom,
+        blk.headerTo,
+        Decoration.replace({ widget: new Separator(i === 0), block: true }),
+      );
+    }
   });
   return b.finish();
 }
@@ -99,6 +138,7 @@ const blockLines = ViewPlugin.fromClass(
       const cur = currentBlock(state);
       const b = new RangeSetBuilder<Decoration>();
       state.field(blocksField).forEach((blk, i) => {
+        if (blk.draw) return;
         const conflict = /^<<<<<<< /m.test(state.doc.sliceString(blk.contentFrom, blk.contentTo));
         const first = state.doc.lineAt(blk.contentFrom);
         const last = state.doc.lineAt(blk.contentTo);
@@ -148,6 +188,33 @@ export function insertBlockAfter(view: EditorView): boolean {
   return true;
 }
 
+/**
+ * ⌘D:插入图块并打开编辑。当前块是空文本块时直接换成图块,否则插在当前块后面;
+ * 图块后面没有文本块时,再补一个空文本块,好让光标有地方继续书写。
+ */
+export function insertDrawing(view: EditorView): boolean {
+  const { state } = view;
+  const hooks = state.facet(drawHooks);
+  const cur = currentBlock(state);
+  if (!cur || !hooks) return false;
+  const blocks = state.field(blocksField);
+  const next = blocks[blocks.indexOf(cur) + 1];
+  const replace = !cur.draw && cur.contentFrom === cur.contentTo;
+  const nb = replace ? { ...newBlock(null, null), key: cur.key } : newBlock(cur.key, next?.key ?? null);
+  let insert = `${replace ? "" : "\n"}${header(nb)}\n${DRAW_LINE}`;
+  if (!next || next.draw) insert += `\n${header(newBlock(nb.key, next?.key ?? null))}\n`;
+  // 替换时连同空块的分隔行一起换掉;插入时接在当前块末尾
+  const from = replace ? cur.headerFrom : cur.contentTo;
+  view.dispatch({
+    changes: { from, to: cur.contentTo, insert },
+    selection: EditorSelection.cursor(from + insert.length),
+    scrollIntoView: true,
+    userEvent: "input.draw",
+  });
+  hooks.inserted(nb.id);
+  return true;
+}
+
 /** ⌘A:第一次选中当前块正文,再按一次选中整页。 */
 export function selectBlockOrAll(view: EditorView): boolean {
   const { state } = view;
@@ -174,6 +241,7 @@ function deleteEmptyBlock(view: EditorView): boolean {
   const i = blocks.indexOf(cur);
   if (i <= 0) return false;
   const prev = blocks[i - 1];
+  if (prev.draw) return false; // 光标不能落进图块,保留这个空块
   view.dispatch({
     changes: { from: cur.headerFrom - 1, to: cur.contentTo },
     selection: EditorSelection.cursor(prev.contentTo),
@@ -182,11 +250,11 @@ function deleteEmptyBlock(view: EditorView): boolean {
   return true;
 }
 
-// 复制、剪切时去掉分隔行,粘贴出来是纯文本
+// 复制、剪切时去掉分隔行和图块占位,粘贴出来是纯文本
 const plainClipboard = EditorView.clipboardOutputFilter.of((text) =>
   text
     .split("\n")
-    .filter((l) => !l.startsWith(MARK))
+    .filter((l) => !isControlLine(l))
     .join("\n"),
 );
 
@@ -239,6 +307,7 @@ export function blockExtensions(): Extension[] {
     keymap.of([
       { key: "Mod-Enter", run: insertBlockAfter },
       { key: "Mod-a", run: selectBlockOrAll },
+      { key: "Mod-d", run: insertDrawing },
       { key: "Backspace", run: deleteEmptyBlock },
       ...historyKeymap,
       ...defaultKeymap,

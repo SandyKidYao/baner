@@ -463,3 +463,91 @@ body {
 .locked p {
   margin: 0;
 }
+
+/* 图块(src/draw):分隔线 + 左侧 ◇ + 预览图或原地打开的 Excalidraw */
+.blk-draw {
+  border-top: var(--border-width) solid var(--color-divider);
+}
+.blk-draw-first {
+  border-top: 0;
+}
+.draw {
+  position: relative;
+  padding: var(--space-3) 20px var(--space-3) 48px;
+}
+.draw.editing {
+  background: var(--color-current);
+  box-shadow: inset var(--current-bar) 0 0 var(--color-primary);
+}
+.draw-gutter {
+  position: absolute;
+  left: 14px;
+  top: var(--space-3);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+}
+.draw.editing .draw-gutter {
+  color: var(--color-text);
+  font-weight: var(--weight-strong);
+}
+.draw-preview {
+  display: block;
+  max-width: 100%;
+  min-height: 2.5em;
+  padding: 0;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.draw-preview:hover {
+  border-color: var(--color-divider);
+}
+.draw-preview img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.draw-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+.draw-bar .sym.on {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.draw-canvas {
+  height: min(70vh, 560px);
+  min-height: 320px;
+  border: var(--border-width) solid var(--color-border);
+  background: var(--color-surface);
+}
+.draw-loading {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--color-muted);
+}
+.keys .keys-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.keys .keys-btn:hover {
+  color: var(--color-text);
+}
+/* 预览图按亮色导出;暗色模式下与 Excalidraw 一样反色显示 */
+@media (prefers-color-scheme: dark) {
+  .draw-preview img {
+    filter: invert(93%) hue-rotate(180deg);
+  }
+}
