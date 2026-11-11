@@ -24,6 +24,12 @@
   --color-current: #fff4dd;
   --color-current-strong: #fde9bf;
   --color-code-bg: #f1f1ec;
+  --color-code-keyword: #8a3a00;
+  --color-code-string: #2d6a34;
+  --color-code-number: #1f5fa8;
+  --color-code-type: #9a2f66;
+  --color-code-fn: #5b3aa8;
+  --color-code-comment: #6b6f86;
   --color-link: #1f5fa8;
   --color-primary: #8a5a00;
   --color-on-primary: #ffffff;
@@ -91,7 +97,13 @@
     --color-divider: #333756;
     --color-current: #2b2f4d;
     --color-current-strong: #363b60;
-    --color-code-bg: #2a2e4a;
+    --color-code-bg: #181a2c; /* 比岛和当前块都深,两种背景上都看得出 */
+    --color-code-keyword: #f2b544;
+    --color-code-string: #7bd389;
+    --color-code-number: #8ab8ff;
+    --color-code-type: #f39fd0;
+    --color-code-fn: #c4a5ff;
+    --color-code-comment: #9a9fbf;
     --color-link: #8ab8ff;
     --color-primary: #f2b544;
     --color-on-primary: #1f2238;
@@ -121,7 +133,13 @@
   --color-divider: #333756;
   --color-current: #2b2f4d;
   --color-current-strong: #363b60;
-  --color-code-bg: #2a2e4a;
+  --color-code-bg: #181a2c; /* 比岛和当前块都深,两种背景上都看得出 */
+  --color-code-keyword: #f2b544;
+  --color-code-string: #7bd389;
+  --color-code-number: #8ab8ff;
+  --color-code-type: #f39fd0;
+  --color-code-fn: #c4a5ff;
+  --color-code-comment: #9a9fbf;
   --color-link: #8ab8ff;
   --color-primary: #f2b544;
   --color-on-primary: #1f2238;

@@ -72,3 +72,88 @@ test("Markdown 结构不会跨块:上一块的列表不会吞掉下一块", asyn
   await expect(page.locator(".cm-line.md-li")).toHaveCount(1);
   await expect(page.locator(".cm-line.blk-first").nth(1)).not.toHaveClass(/md-li/);
 });
+
+test("源码模式显示行号:每块从 1 开始,与文件里的行号一致", async ({ page }) => {
+  await open(page);
+  await page.keyboard.type("第一行");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("第二行");
+  await page.keyboard.press("ControlOrMeta+Enter");
+  await page.keyboard.type("下一块");
+  await expect(page.locator(".cm-line[data-ln]")).toHaveCount(0); // 所见模式不显示
+  await page.keyboard.press("ControlOrMeta+e");
+  const lns = await page
+    .locator(".cm-line[data-ln]")
+    .evaluateAll((els) => els.map((e) => e.getAttribute("data-ln")));
+  expect(lns).toEqual(["1", "2", "1"]);
+});
+
+test("Tab 在编辑器里缩进:光标处插入两个空格;列表项整项缩进;Shift+Tab 反缩进;焦点不离开编辑器", async ({
+  page,
+}) => {
+  await open(page);
+  await page.keyboard.type("ab");
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("Tab");
+  await expect(line(page, 0)).toHaveText("a  b");
+  await expect(editor(page)).toBeFocused();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("- 父项");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("子项");
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("ControlOrMeta+e"); // 源码模式看原文
+  await expect(line(page, 2)).toHaveText("  - 子项");
+  await page.keyboard.press("Shift+Tab");
+  await expect(line(page, 2)).toHaveText("- 子项");
+  // ⌘A 两次选中整页再 Tab:各块的正文都缩进,块结构不受影响
+  await page.keyboard.press("ControlOrMeta+Enter");
+  await page.keyboard.type("第二块");
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Tab");
+  await expect(page.locator(".cm-line.blk-first")).toHaveCount(2);
+  await expect(page.locator(".cm-line.blk-first").nth(1)).toHaveText("  第二块");
+  // 键盘离开编辑器:先 Esc 再 Tab(CodeMirror 的约定)
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Tab");
+  await expect(editor(page)).not.toBeFocused();
+});
+
+test("代码块:所见模式渲染成带语言标签与复制按钮的盒子,代码高亮;点代码进入编辑", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await open(page);
+  await page.keyboard.type("说明");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type('```js\nconst a = 1; // 注释\nconsole.log("hi")\n```');
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("后面的文字");
+  const box = page.locator(".cb");
+  await expect(box).toBeVisible();
+  await expect(box.locator(".cb-lang")).toHaveText("js");
+  await expect(box.locator(".cb-line")).toHaveText(["const a = 1; // 注释", 'console.log("hi")']);
+  // 语言解析器按需加载后有高亮
+  await expect(box.locator(".cb-line").first().locator("span").first()).toBeVisible({ timeout: 10_000 });
+  await box.getByRole("button", { name: "复制代码" }).click();
+  await expect(box.getByRole("button", { name: "复制代码" })).toHaveText("已复制");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    'const a = 1; // 注释\nconsole.log("hi")',
+  );
+  // 点代码:回到原样,光标在那一行
+  await box.locator(".cb-line").nth(1).click();
+  await expect(page.locator(".cb")).toHaveCount(0);
+  await expect(page.locator(".cm-line.md-codeblock")).toHaveCount(4);
+  await expect(page.locator(".cm-line.md-codeblock").first()).toContainText("```js");
+  await expect(page.locator(".cb-copy-inline")).toHaveCount(1); // 原样时复制按钮在开头一行末尾
+});
+
+test("没闭合的代码块不会吞掉后面的块", async ({ page }) => {
+  await open(page);
+  await page.keyboard.type("```\n没写完的代码");
+  await page.keyboard.press("ControlOrMeta+Enter");
+  await page.keyboard.type("## 下一块的标题");
+  await page.keyboard.press("ControlOrMeta+Enter");
+  await page.keyboard.type("x");
+  await expect(page.locator(".cm-line.md-h2")).toHaveText("下一块的标题");
+});

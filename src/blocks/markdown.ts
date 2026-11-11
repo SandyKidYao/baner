@@ -13,7 +13,17 @@ import {
   type ViewUpdate,
   WidgetType,
 } from "@codemirror/view";
-import { parser as baseParser, GFM, type MarkdownConfig } from "@lezer/markdown";
+import { parser as baseParser, GFM, type MarkdownConfig, parseCode } from "@lezer/markdown";
+import {
+  CopyWidget,
+  codeBlocks,
+  codeParser,
+  codeParts,
+  fenceAtBlockBoundary,
+  spansBlocks,
+  touched,
+} from "./code-blocks";
+import { blocksField } from "./editor";
 
 export type MdMode = "wysiwyg" | "source";
 
@@ -39,7 +49,7 @@ const BlockSep: MarkdownConfig = {
 
 export const mdLanguage = new Language(
   defineLanguageFacet({ commentTokens: { block: { open: "<!--", close: "-->" } } }),
-  baseParser.configure([GFM, BlockSep]),
+  baseParser.configure([GFM, BlockSep, fenceAtBlockBoundary, parseCode({ codeParser })]),
   [],
   "markdown",
 );
@@ -124,6 +134,7 @@ function build(view: EditorView, mode: MdMode): DecorationSet {
   const lines = (from: number, to: number, cls: string) => {
     for (let n = doc.lineAt(from).number; n <= doc.lineAt(to).number; n++) {
       const l = doc.line(n);
+      if (l.text.charCodeAt(0) === CTRL) continue; // 分隔行不属于任何块的内容
       items.push({ from: l.from, to: l.from, deco: lineCls(cls) });
     }
   };
@@ -172,7 +183,20 @@ function build(view: EditorView, mode: MdMode): DecorationSet {
             if (n.node.parent?.name === "InlineCode") marker(n.from, n.to);
             else add(n.from, n.to, mark("md-mk")); // 代码块的 ``` 始终可见
             return;
-          case "FencedCode":
+          case "FencedCode": {
+            const p = codeParts(state, n.node);
+            // 所见模式下光标不在里面:整块渲染成盒子(code-blocks.ts 的 codeWidgets)
+            if (mode === "wysiwyg" && !touched(state, p) && !spansBlocks(state, p)) return false;
+            lines(n.from, n.to, "md-codeblock");
+            const fenceEnd = doc.lineAt(n.from).to;
+            const code = doc.sliceString(p.textFrom, p.textTo);
+            items.push({
+              from: fenceEnd,
+              to: fenceEnd,
+              deco: Decoration.widget({ widget: new CopyWidget(code), side: 1 }),
+            });
+            return;
+          }
           case "CodeBlock":
             lines(n.from, n.to, "md-codeblock");
             return;
@@ -256,6 +280,41 @@ function livePlugin(mode: MdMode) {
   );
 }
 
+/**
+ * 源码模式的行号:每块从 1 开始。每个块就是一个 .md 文件,行号与文件里的行号一致。
+ * 块序号仍在最左边,行号在它右侧单独一列(.cm-line::after,见 sourceTheme)。
+ */
+const lineNumbers = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = this.build(view);
+    }
+    update(u: ViewUpdate) {
+      if (u.docChanged || u.viewportChanged) this.decorations = this.build(u.view);
+    }
+    build(view: EditorView): DecorationSet {
+      const { doc } = view.state;
+      const out = [];
+      for (const blk of view.state.field(blocksField)) {
+        if (blk.draw) continue;
+        const first = doc.lineAt(blk.contentFrom).number;
+        const last = doc.lineAt(blk.contentTo).number;
+        for (const { from, to } of view.visibleRanges) {
+          const a = Math.max(first, doc.lineAt(from).number);
+          const b = Math.min(last, doc.lineAt(to).number);
+          for (let n = a; n <= b; n++)
+            out.push(
+              Decoration.line({ attributes: { "data-ln": String(n - first + 1) } }).range(doc.line(n).from),
+            );
+        }
+      }
+      return Decoration.set(out, true);
+    }
+  },
+  { decorations: (v) => v.decorations },
+);
+
 /** 列表里回车:续上同样的前缀(有序列表加一、待办变成未完成);空的列表项回车则结束列表 */
 function continueList(view: EditorView): boolean {
   const { state } = view;
@@ -289,7 +348,6 @@ const theme = EditorView.theme({
   ".md-em": { fontStyle: "italic" },
   ".md-strike": { textDecoration: "line-through", textDecorationColor: "var(--color-faint)" },
   ".md-code": { background: "var(--color-code-bg)", borderRadius: "4px", padding: "0 2px" },
-  ".md-codeblock": { background: "var(--color-code-bg)" },
   ".md-link": { color: "var(--color-link)", textDecoration: "underline", textUnderlineOffset: "2px" },
   // 引用:竖线画在正文左边(行的左内边距里),不贴着岛的边缘
   ".cm-line.md-quote": {
@@ -323,10 +381,29 @@ const theme = EditorView.theme({
 
 // 源码模式:字号统一,只给标记上色
 const sourceTheme = EditorView.theme({
+  // 左侧多一列行号:块序号在 14px 处,行号右对齐在它右边
+  // 加 &.md-source 提高优先级,压过 editor.ts 里同名的规则
+  "&.md-source .cm-content": { "--line-pad": "76px" },
+  "&.md-source .blk-cur, &.md-source .blk-conflict, &.md-source .cb-wrap.cb-cur": { "--line-pad": "70px" },
+  ".cm-line[data-ln]::after": {
+    content: "attr(data-ln)",
+    position: "absolute",
+    left: "0",
+    top: "0",
+    width: "calc(var(--line-pad) - 14px)",
+    textAlign: "right",
+    color: "var(--color-faint)",
+    fontSize: "var(--text-xs)",
+    fontStyle: "normal",
+    fontWeight: "var(--weight-normal)",
+    textIndent: "0",
+    pointerEvents: "none",
+  },
+  ".blk-first[data-ln]::after": { top: "var(--space-3)" },
   ".md-mk, .md-num": { color: "var(--color-primary)", opacity: "0.8" },
   ".md-h1, .md-h2, .md-h3": { fontSize: "inherit", lineHeight: "inherit" },
   ".md-link": { color: "inherit" },
-  ".md-code, .md-codeblock": { background: "none" },
+  ".md-code": { background: "none" },
   ".cm-line.md-quote": { backgroundImage: "none", color: "inherit" },
   ".cm-line.md-li, .cm-line.md-li-task": { paddingLeft: "var(--line-pad)", textIndent: "0" },
 });
@@ -336,7 +413,8 @@ export function markdown(mode: MdMode): Extension {
   return [
     mdLanguage,
     theme,
-    mode === "source" ? sourceTheme : [],
+    codeBlocks.base,
+    mode === "source" ? [sourceTheme, lineNumbers] : codeBlocks.rendered,
     livePlugin(mode),
     Prec.high(keymap.of([{ key: "Enter", run: continueList }])),
     EditorView.editorAttributes.of({ class: `md-${mode}` }),

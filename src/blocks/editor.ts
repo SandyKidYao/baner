@@ -1,5 +1,5 @@
 // CodeMirror 6 扩展:把一个文档显示成多个块。
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, simplifySelection } from "@codemirror/commands";
 import {
   EditorSelection,
   EditorState,
@@ -252,6 +252,48 @@ export function selectBlockOrAll(view: EditorView): boolean {
   return true;
 }
 
+const INDENT = "  "; // Markdown 嵌套列表用两个空格
+
+/** 选区覆盖到的正文行(跳过分隔行和图块占位行) */
+function selectedTextLines(state: EditorState) {
+  const lines = new Map<number, { from: number; text: string }>();
+  for (const r of state.selection.ranges) {
+    for (let n = state.doc.lineAt(r.from).number; n <= state.doc.lineAt(r.to).number; n++) {
+      const l = state.doc.line(n);
+      if (!isControlLine(l.text)) lines.set(n, { from: l.from, text: l.text });
+    }
+  }
+  return [...lines.values()];
+}
+
+/**
+ * Tab:与常见编辑器一致。没有选中文字时,在列表项里把整项往里缩一级,否则在光标处插入两个空格;
+ * 选中了文字时,把选中的各行往里缩一级。
+ */
+export function indent(view: EditorView): boolean {
+  const { state } = view;
+  const sel = state.selection.main;
+  const line = state.doc.lineAt(sel.head);
+  if (isControlLine(line.text)) return true;
+  if (state.selection.ranges.every((r) => r.empty) && !/^\s*([-*+]|\d+[.)]) /.test(line.text)) {
+    view.dispatch(state.replaceSelection(INDENT), { scrollIntoView: true, userEvent: "input.indent" });
+    return true;
+  }
+  const changes = selectedTextLines(state).map((l) => ({ from: l.from, insert: INDENT }));
+  view.dispatch({ changes, userEvent: "input.indent" });
+  return true;
+}
+
+/** Shift+Tab:把光标所在或选中的各行往外缩一级(去掉最多两个空格或一个制表符)。 */
+export function outdent(view: EditorView): boolean {
+  const changes = selectedTextLines(view.state).flatMap((l) => {
+    const m = /^( {1,2}|\t)/.exec(l.text);
+    return m ? [{ from: l.from, to: l.from + m[0].length }] : [];
+  });
+  if (changes.length) view.dispatch({ changes, userEvent: "delete.dedent" });
+  return true;
+}
+
 /** 退格:当前块为空且不是第一块时,删掉这个空块,光标回到上一块末尾。 */
 function deleteEmptyBlock(view: EditorView): boolean {
   const { state } = view;
@@ -347,6 +389,17 @@ export function blockExtensions(): Extension[] {
       { key: "Mod-Enter", run: insertBlockAfter },
       { key: "Mod-a", run: selectBlockOrAll },
       { key: "Mod-d", run: insertDrawing },
+      // Tab 留在编辑器里缩进;要用键盘离开编辑器,先按 Esc 再按 Tab(CodeMirror 的约定)
+      { key: "Tab", run: indent, shift: outdent },
+      // Esc:收起选区,并让接下来 2 秒内的 Tab 把焦点移出编辑器(有没有选区都一样)
+      {
+        key: "Escape",
+        run: (view) => {
+          simplifySelection(view);
+          view.setTabFocusMode(2000);
+          return true;
+        },
+      },
       { key: "Backspace", run: deleteEmptyBlock },
       ...historyKeymap,
       ...defaultKeymap,
