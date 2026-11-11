@@ -30,7 +30,7 @@ test("U10:设置主密钥(校验长度与两次一致),然后给 tab 开启加�
   await expect(lock).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".rail .tab.act .badge")).toBeVisible();
   await page.getByRole("button", { name: "关闭" }).click();
-  await expect(page.locator(".ph-name")).toContainText("⚿");
+  await expect(page.locator(".ph-meta .ph-lock")).toContainText("加密"); // 页头状态区显示锁
 });
 
 test("另一台设备:本机没有主密钥时加密 tab 显示锁;输入正确的主密钥后解锁", async ({ page }) => {

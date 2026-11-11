@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ModeToggle } from "../blocks/ModeToggle";
+import type { MdMode } from "../blocks/markdown";
 import { type EditorApi, TabEditor } from "../blocks/TabEditor";
 import { describeCryptoError } from "../crypto/errors";
 import { appReady, type CryptoStatus, cryptoStatus, setTabEncrypted, setTabSynced } from "../ipc";
@@ -13,6 +15,23 @@ import { SettingsPanel } from "../settings/SettingsPanel";
 import { SyncButton } from "../sync/SyncButton";
 import { useSync } from "../sync/useSync";
 import { useNarrow } from "./useMedia";
+
+const MD_MODE = "baner.mdMode"; // 本机偏好:所见 / 源码
+
+function readMdMode(): MdMode {
+  try {
+    return localStorage.getItem(MD_MODE) === "source" ? "source" : "wysiwyg";
+  } catch {
+    return "wysiwyg";
+  }
+}
+function writeMdMode(m: MdMode) {
+  try {
+    localStorage.setItem(MD_MODE, m);
+  } catch {
+    /* 无存储时只在本次运行中生效 */
+  }
+}
 
 export default function App() {
   const { tabs, active, select, create, update, remove, move, refresh } = useTabs();
@@ -33,6 +52,11 @@ export default function App() {
   }, [refresh, sync.onSaved]);
   const [fresh, setFresh] = useState<string | null>(null); // 刚新建、需要立刻改名的 tab
   const narrow = useNarrow();
+  const [mdMode, setMdMode] = useState<MdMode>(readMdMode);
+  const changeMdMode = useCallback((m: MdMode) => {
+    setMdMode(m);
+    writeMdMode(m);
+  }, []);
   const [menu, setMenu] = useState<TabMenuTarget | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
   const openMenu = useCallback(
@@ -75,6 +99,13 @@ export default function App() {
       } else if (e.key === ",") {
         e.preventDefault();
         setSettings((v) => !v);
+      } else if (e.key.toLowerCase() === "e") {
+        e.preventDefault();
+        setMdMode((m) => {
+          const next = m === "wysiwyg" ? "source" : "wysiwyg";
+          writeMdMode(next);
+          return next;
+        });
       }
     };
     window.addEventListener("keydown", onKey, true);
@@ -92,6 +123,57 @@ export default function App() {
   const movable = tabs.filter((t) => !t.locked);
   const menuTab = menu && tabs.find((t) => t.id === menu.tab.id);
   const menuIndex = menuTab ? movable.findIndex((t) => t.id === menuTab.id) : -1;
+  const modeToggle = <ModeToggle mode={mdMode} onChange={changeMdMode} />;
+
+  const header = (
+    <PageHeader
+      key={active.id}
+      tab={active}
+      synced={sync.state.phase === "off" ? null : !unsynced.includes(active.id)}
+      narrow={narrow}
+      editOnMount={fresh === active.id}
+      onUpdate={(t) => {
+        setFresh(null);
+        update(t);
+      }}
+      lead={
+        narrow && (
+          <button
+            type="button"
+            className="sym"
+            aria-label="打开 tab 列表"
+            aria-expanded={drawer}
+            title="tab 列表"
+            onClick={() => setDrawer(true)}
+          >
+            <MenuIcon />
+          </button>
+        )
+      }
+      tools={
+        <>
+          {narrow && syncButton}
+          {modeToggle}
+        </>
+      }
+    />
+  );
+
+  const settingsPanel = settings && (
+    <SettingsPanel
+      tabs={tabs}
+      status={sync.state.status}
+      onSaved={sync.onConfigured}
+      crypto={crypto}
+      onCryptoChanged={(c) => {
+        setCrypto(c);
+        contentChanged();
+      }}
+      onTabsChanged={contentChanged}
+      onSyncChanged={sync.refreshStatus}
+      onClose={() => setSettings(false)}
+    />
+  );
 
   return (
     <div className={narrow ? "app narrow" : "app"}>
@@ -133,82 +215,43 @@ export default function App() {
         />
       )}
       <div className="main">
-        <PageHeader
-          lead={
-            narrow && (
+        {narrow && header}
+        <div className="island page-island">
+          {!narrow && header}
+          <main className="page">
+            <TabEditor
+              key={`${active.id}:${epoch}`}
+              tab={active.id}
+              mdMode={mdMode}
+              onReady={onReady}
+              autoFocus={fresh !== active.id}
+              onSaved={() => {
+                clearPlaceholder(active.id);
+                sync.onSaved();
+              }}
+              api={editorApi}
+              onOpenSettings={() => setSettings(true)}
+            />
+            {narrow && settingsPanel}
+            {narrow && !settings && !active.locked && (
               <button
                 type="button"
-                className="sym"
-                aria-label="打开 tab 列表"
-                aria-expanded={drawer}
-                title="tab 列表"
-                onClick={() => setDrawer(true)}
+                className="fab"
+                aria-label="新块"
+                title="新块"
+                onClick={() => editorApi.current?.insertBlock()}
               >
-                <MenuIcon />
+                <PlusIcon />
               </button>
-            )
-          }
-          tools={narrow && syncButton}
-          key={active.id}
-          tab={active}
-          editOnMount={fresh === active.id}
-          onUpdate={(t) => {
-            setFresh(null);
-            update(t);
-          }}
-        />
-        <main className="page">
-          <TabEditor
-            key={`${active.id}:${epoch}`}
-            tab={active.id}
-            onReady={onReady}
-            autoFocus={fresh !== active.id}
-            onSaved={() => {
-              clearPlaceholder(active.id);
-              sync.onSaved();
-            }}
-            api={editorApi}
-            onOpenSettings={() => setSettings(true)}
-          />
-          {settings && (
-            <SettingsPanel
-              tabs={tabs}
-              status={sync.state.status}
-              onSaved={sync.onConfigured}
-              crypto={crypto}
-              onCryptoChanged={(c) => {
-                setCrypto(c);
-                contentChanged();
-              }}
-              onTabsChanged={contentChanged}
-              onSyncChanged={sync.refreshStatus}
-              onClose={() => setSettings(false)}
-            />
-          )}
-          {narrow && !settings && !active.locked && (
-            <button
-              type="button"
-              className="fab"
-              aria-label="新块"
-              title="新块"
-              onClick={() => editorApi.current?.insertBlock()}
-            >
-              <PlusIcon />
-            </button>
-          )}
-        </main>
+            )}
+          </main>
+        </div>
         <footer className="keys" hidden={narrow}>
           <span>
             <kbd>{MOD}↵</kbd> 新块
           </span>
           <span>
             <kbd>{MOD}A</kbd> 选块
-          </span>
-          <span>
-            <kbd>{MOD}1–9</kbd> tab
-          </span>
-          <span>
-            <kbd>{MOD}T</kbd> 新 tab
           </span>
           <button
             type="button"
@@ -218,8 +261,15 @@ export default function App() {
           >
             <kbd>{MOD}D</kbd>◇ 图块
           </button>
+          <span>
+            <kbd>{MOD}E</kbd> 所见 / 源码
+          </span>
+          <span>
+            <kbd>{MOD}1–9</kbd> tab
+          </span>
         </footer>
       </div>
+      {!narrow && settingsPanel}
       {menu && menuTab && (
         <TabMenu
           {...menu}

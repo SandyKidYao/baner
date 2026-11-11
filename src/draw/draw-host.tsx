@@ -3,7 +3,7 @@ import { EditorSelection } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { createRoot, type Root } from "react-dom/client";
 import { NARROW } from "../app/useMedia";
-import { blocksField, type DrawHooks } from "../blocks/editor";
+import { blocksField, type DrawHooks, setDrawEditing } from "../blocks/editor";
 import { newBlock, serialize } from "../blocks/model";
 import { type Block, type Drawing, loadDrawing, saveDrawing } from "../ipc";
 import { DrawBlock } from "./DrawBlock";
@@ -31,7 +31,7 @@ export class DrawHost {
 
   constructor(private opts: Options) {
     this.hooks = {
-      widget: (b, first) => new DrawWidget(this, b.id, b.key, first),
+      widget: (b, first, no) => new DrawWidget(this, b.id, b.key, first, no),
       inserted: (id) => this.open(id),
       canInsert: () => !window.matchMedia(NARROW).matches,
     };
@@ -76,11 +76,13 @@ export class DrawHost {
   open(id: string) {
     this.editing = id;
     this.emit();
+    this.view?.dispatch({ effects: setDrawEditing.of(id) });
   }
   close(id: string) {
     if (this.editing !== id) return;
     this.editing = null;
     this.emit();
+    this.view?.dispatch({ effects: setDrawEditing.of(null) });
   }
 
   /** 正在编辑的图块登记「立即保存」,供同步前落盘 */

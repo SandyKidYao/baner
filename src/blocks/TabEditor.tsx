@@ -1,4 +1,4 @@
-import { Annotation, EditorState } from "@codemirror/state";
+import { Annotation, Compartment, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { type MutableRefObject, useEffect, useRef, useState } from "react";
 import { DrawHost } from "../draw/draw-host";
@@ -6,6 +6,7 @@ import { type Block, deleteBlock, isLocked, loadBlocks, saveBlock, saveDrawing }
 import { GearIcon, LockIcon } from "../rail/icons";
 import { debounce } from "./debounce";
 import { blockExtensions, drawHooks, insertBlockAfter, insertDrawing } from "./editor";
+import { type MdMode, markdown } from "./markdown";
 import { type Diff, diff, isDraw, newBlock, parse, serialize } from "./model";
 
 /** 同步协调用:同步前先落盘,同步后按需从磁盘重新载入。 */
@@ -22,6 +23,8 @@ export interface EditorApi {
 
 interface Props {
   tab: string;
+  /** 所见 / 源码(本机偏好);切换时不重建编辑器 */
+  mdMode: MdMode;
   onReady?: () => void;
   autoFocus?: boolean;
   /** 有块落盘后调用(用于安排自动同步) */
@@ -34,7 +37,11 @@ interface Props {
 const external = Annotation.define<boolean>(); // 来自磁盘的替换,不触发保存
 
 /** 一个 tab 的分块编辑器:载入块文件 → 编辑 → 停止输入 300ms 后只保存有变化的块。 */
-export function TabEditor({ tab, onReady, autoFocus = true, onSaved, api, onOpenSettings }: Props) {
+export function TabEditor({ tab, mdMode, onReady, autoFocus = true, onSaved, api, onOpenSettings }: Props) {
+  const mdCompartment = useRef(new Compartment()).current;
+  const viewRef = useRef<EditorView | null>(null);
+  const mode = useRef(mdMode);
+  mode.current = mdMode;
   const [locked, setLocked] = useState(false);
   const host = useRef<HTMLDivElement>(null);
   const ready = useRef(onReady);
@@ -99,6 +106,7 @@ export function TabEditor({ tab, onReady, autoFocus = true, onSaved, api, onOpen
             selection: { anchor: doc.length },
             extensions: [
               blockExtensions(),
+              mdCompartment.of(markdown(mode.current)),
               drawHooks.of(draws.hooks),
               EditorView.contentAttributes.of({ "aria-label": "块编辑区", "data-testid": "editor" }),
               EditorView.updateListener.of((u) => {
@@ -109,6 +117,7 @@ export function TabEditor({ tab, onReady, autoFocus = true, onSaved, api, onOpen
           }),
         });
         draws.view = view;
+        viewRef.current = view;
         if (focus.current) view.focus();
       })
       .catch((e) => {
@@ -168,10 +177,15 @@ export function TabEditor({ tab, onReady, autoFocus = true, onSaved, api, onOpen
       window.removeEventListener("blur", flush);
       document.removeEventListener("visibilitychange", flush);
       view?.destroy();
+      viewRef.current = null;
       draws.destroy();
       if (api) api.current = null;
     };
-  }, [tab, api]);
+  }, [tab, api, mdCompartment]);
+
+  useEffect(() => {
+    viewRef.current?.dispatch({ effects: mdCompartment.reconfigure(markdown(mdMode)) });
+  }, [mdMode, mdCompartment]);
 
   if (locked) {
     return (

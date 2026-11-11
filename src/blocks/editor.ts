@@ -6,6 +6,7 @@ import {
   type Extension,
   Facet,
   RangeSetBuilder,
+  StateEffect,
   StateField,
 } from "@codemirror/state";
 import {
@@ -33,13 +34,24 @@ export interface BlockRange {
 
 /** 图块的界面由外部提供(src/draw),这里只负责在文档里占位和插入。 */
 export interface DrawHooks {
-  widget: (b: Pick<BlockRange, "id" | "key">, first: boolean) => WidgetType;
+  /** no:块序号(从 1 开始,与文本块一起编号) */
+  widget: (b: Pick<BlockRange, "id" | "key">, first: boolean, no: number) => WidgetType;
   /** 新插入的图块:直接打开编辑 */
   inserted: (id: string) => void;
   /** 能否插入图块(手机布局下图块只读) */
   canInsert: () => boolean;
 }
 export const drawHooks = Facet.define<DrawHooks, DrawHooks | null>({ combine: (v) => v[0] ?? null });
+
+/** 正在编辑的图块(只能有一个);这时它就是「当前块」,文本块不再高亮 */
+export const setDrawEditing = StateEffect.define<string | null>();
+export const drawEditingField = StateField.define<string | null>({
+  create: () => null,
+  update(v, tr) {
+    for (const e of tr.effects) if (e.is(setDrawEditing)) v = e.value;
+    return v;
+  },
+});
 
 export function scanBlocks(state: EditorState): BlockRange[] {
   const out: BlockRange[] = [];
@@ -112,7 +124,7 @@ function buildSeparators(state: EditorState): DecorationSet {
       b.add(
         blk.headerFrom,
         blk.contentTo,
-        Decoration.replace({ widget: hooks.widget(blk, i === 0), block: true }),
+        Decoration.replace({ widget: hooks.widget(blk, i === 0, i + 1), block: true }),
       );
     } else {
       b.add(
@@ -133,11 +145,17 @@ const blockLines = ViewPlugin.fromClass(
       this.decorations = this.build(view);
     }
     update(u: ViewUpdate) {
-      if (u.docChanged || u.selectionSet || u.viewportChanged) this.decorations = this.build(u.view);
+      if (
+        u.docChanged ||
+        u.selectionSet ||
+        u.viewportChanged ||
+        u.startState.field(drawEditingField) !== u.state.field(drawEditingField)
+      )
+        this.decorations = this.build(u.view);
     }
     build(view: EditorView): DecorationSet {
       const { state } = view;
-      const cur = currentBlock(state);
+      const cur = state.field(drawEditingField) ? undefined : currentBlock(state);
       const b = new RangeSetBuilder<Decoration>();
       state.field(blocksField).forEach((blk, i) => {
         if (blk.draw) return;
@@ -271,8 +289,12 @@ const theme = EditorView.theme({
   },
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": { fontFamily: "var(--font-body)", lineHeight: "var(--leading-body)" },
-  ".cm-content": { padding: "0 0 var(--space-8)", caretColor: "var(--color-primary)" },
-  ".cm-line": { padding: "0 20px 0 48px" },
+  ".cm-content": {
+    "--line-pad": "48px", // 左侧留给块序号
+    padding: "var(--space-1) 0 var(--space-8)",
+    caretColor: "var(--color-primary)",
+  },
+  ".cm-line": { padding: "0 20px 0 var(--line-pad)" },
   ".cm-cursor, .cm-dropCursor": { borderLeft: "2px solid var(--color-primary)" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
     background: "color-mix(in srgb, var(--color-primary) 28%, transparent)",
@@ -286,15 +308,28 @@ const theme = EditorView.theme({
     content: "attr(data-no)",
     position: "absolute",
     left: "14px",
+    top: "var(--space-3)",
     color: "var(--color-muted)",
     fontSize: "var(--text-sm)",
+    fontWeight: "var(--weight-normal)",
+    fontStyle: "normal",
+    lineHeight: "1.9",
+    textIndent: "0",
   },
+  // 当前块:岛内的圆角高亮,左侧主色竖条(Islands)
+  ".blk-cur, .blk-conflict": { margin: "0 var(--island-gap)", "--line-pad": "42px" },
   ".blk-cur": {
     background: "var(--color-current)",
     boxShadow: "inset var(--current-bar) 0 0 var(--color-primary)",
   },
+  ".blk-cur.blk-first, .blk-conflict.blk-first": { borderTopLeftRadius: "8px", borderTopRightRadius: "8px" },
+  ".blk-cur.blk-last, .blk-conflict.blk-last": {
+    borderBottomLeftRadius: "8px",
+    borderBottomRightRadius: "8px",
+  },
+  ".blk-cur.blk-first::before, .blk-conflict.blk-first::before": { left: "8px" },
   ".blk-cur.blk-first::before": { color: "var(--color-text)", fontWeight: "var(--weight-strong)" },
-  // 冲突块:左侧加粗的警告色竖条(形状上也与普通当前块不同:更宽)
+  // 冲突块:更宽的警告色竖条(形状上也与当前块不同)
   ".blk-conflict": { boxShadow: "inset 8px 0 0 var(--color-warning)" },
 });
 
@@ -302,6 +337,7 @@ export function blockExtensions(): Extension[] {
   return [
     theme,
     blocksField,
+    drawEditingField,
     separators,
     blockLines,
     protectStructure,

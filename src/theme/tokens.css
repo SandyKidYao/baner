@@ -1,5 +1,6 @@
 /* Baner design tokens
- * 主题:B「极客 · 锋利 · 高效」(第一版唯一主题)
+ * 主题:B「极客 · 锋利 · 高效」(第一版唯一主题),Islands 布局(design.md v3):
+ * 窗口底色(--color-rail,靛蓝)上浮着圆角的「岛」(--color-surface)。
  * 结构为多主题预留:每个主题一个 [data-theme] 作用域,亮/暗各一套。
  * 亮暗默认跟随系统;[data-mode] 可手动覆盖。
  * 对比度见 design.md「配色」节(脚本计算)。
@@ -13,16 +14,26 @@
   --color-rail-text: #e8e9f2;
   --color-rail-accent: #f2b544;
   --color-rail-on-accent: #1f2238;
+  --color-rail-muted: #a3a7c2;
+  --color-surface-2: #f7f7f4;
   --color-text: #1f2238;
   --color-muted: #565a73;
+  --color-faint: #868aa0;
   --color-border: #7f839b;
-  --color-divider: #dcdde6;
+  --color-divider: #e4e4ea;
   --color-current: #fff4dd;
+  --color-current-strong: #fde9bf;
+  --color-code-bg: #f1f1ec;
+  --color-link: #1f5fa8;
   --color-primary: #8a5a00;
   --color-on-primary: #ffffff;
   --color-success: #2d7a3e;
   --color-warning: #8a5a00;
   --color-danger: #b42318;
+  --color-hover: rgb(31 34 56 / 0.07);
+  --color-rail-hover: rgb(232 233 242 / 0.1);
+  --color-grid-dot: rgb(31 34 56 / 0.13);
+  --shadow-pop: 0 6px 20px rgb(0 0 0 / 0.16);
 
   --font-ui:
     ui-monospace, "SF Mono", Menlo, Consolas, "Roboto Mono", "PingFang SC", "Microsoft YaHei",
@@ -46,7 +57,9 @@
   --space-6: 24px;
   --space-8: 32px;
 
-  --radius: 0;
+  --radius: 6px; /* 控件 */
+  --radius-island: 10px; /* 岛 */
+  --island-gap: 6px; /* 岛与岛、岛与窗口边缘之间的缝 */
   --border-width: 1px;
   --focus-ring: 2px solid var(--color-primary);
   --current-bar: 4px;
@@ -64,42 +77,60 @@
   :root:not([data-mode="light"]),
   [data-theme="b"]:not([data-mode="light"]) {
     --color-bg: #1f2238;
-    --color-surface: #252942;
-    --color-rail: #181a2c;
+    --color-surface: #1f2238;
+    --color-surface-2: #252942;
+    --color-rail: #15172a;
     --color-rail-text: #e8e9f2;
+    --color-rail-muted: #a3a7c2;
     --color-rail-accent: #f2b544;
     --color-rail-on-accent: #1f2238;
     --color-text: #e8e9f2;
     --color-muted: #a3a7c2;
+    --color-faint: #7c81a6;
     --color-border: #7a80a3;
-    --color-divider: #363a58;
-    --color-current: #2e3150;
+    --color-divider: #333756;
+    --color-current: #2b2f4d;
+    --color-current-strong: #363b60;
+    --color-code-bg: #2a2e4a;
+    --color-link: #8ab8ff;
     --color-primary: #f2b544;
     --color-on-primary: #1f2238;
     --color-success: #7bd389;
     --color-warning: #f2b544;
     --color-danger: #ff8a7a;
+    --color-hover: rgb(232 233 242 / 0.08);
+    --color-grid-dot: rgb(232 233 242 / 0.12);
+    --shadow-pop: 0 6px 20px rgb(0 0 0 / 0.4);
   }
 }
 
 :root[data-mode="dark"],
 [data-theme="b"][data-mode="dark"] {
   --color-bg: #1f2238;
-  --color-surface: #252942;
-  --color-rail: #181a2c;
+  --color-surface: #1f2238;
+  --color-surface-2: #252942;
+  --color-rail: #15172a;
   --color-rail-text: #e8e9f2;
+  --color-rail-muted: #a3a7c2;
   --color-rail-accent: #f2b544;
   --color-rail-on-accent: #1f2238;
   --color-text: #e8e9f2;
   --color-muted: #a3a7c2;
+  --color-faint: #7c81a6;
   --color-border: #7a80a3;
-  --color-divider: #363a58;
-  --color-current: #2e3150;
+  --color-divider: #333756;
+  --color-current: #2b2f4d;
+  --color-current-strong: #363b60;
+  --color-code-bg: #2a2e4a;
+  --color-link: #8ab8ff;
   --color-primary: #f2b544;
   --color-on-primary: #1f2238;
   --color-success: #7bd389;
   --color-warning: #f2b544;
   --color-danger: #ff8a7a;
+  --color-hover: rgb(232 233 242 / 0.08);
+  --color-grid-dot: rgb(232 233 242 / 0.12);
+  --shadow-pop: 0 6px 20px rgb(0 0 0 / 0.4);
 }
 
 @media (prefers-reduced-motion: reduce) {

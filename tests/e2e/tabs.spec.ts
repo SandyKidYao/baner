@@ -165,3 +165,13 @@ test("右键菜单加密:没有主密钥时引导去配置;有主密钥时直接
   await tabButtons(page).first().click({ button: "right" });
   await expect(enc).toHaveAttribute("aria-checked", "true");
 });
+
+test("同步与加密在桌面上是页面右侧的岛,不盖住正在写的页面", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "同步与加密" }).click();
+  const panel = page.getByRole("region", { name: "同步与加密" });
+  await expect(panel).toBeVisible();
+  const p = await panel.boundingBox();
+  const e = await page.getByTestId("editor").boundingBox();
+  expect(p && e && p.x >= e.x + e.width).toBeTruthy();
+});
