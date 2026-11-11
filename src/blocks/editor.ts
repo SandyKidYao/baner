@@ -36,6 +36,8 @@ export interface DrawHooks {
   widget: (b: Pick<BlockRange, "id" | "key">, first: boolean) => WidgetType;
   /** 新插入的图块:直接打开编辑 */
   inserted: (id: string) => void;
+  /** 能否插入图块(手机布局下图块只读) */
+  canInsert: () => boolean;
 }
 export const drawHooks = Facet.define<DrawHooks, DrawHooks | null>({ combine: (v) => v[0] ?? null });
 
@@ -197,6 +199,7 @@ export function insertDrawing(view: EditorView): boolean {
   const hooks = state.facet(drawHooks);
   const cur = currentBlock(state);
   if (!cur || !hooks) return false;
+  if (!hooks.canInsert()) return true;
   const blocks = state.field(blocksField);
   const next = blocks[blocks.indexOf(cur) + 1];
   const replace = !cur.draw && cur.contentFrom === cur.contentTo;
@@ -264,7 +267,7 @@ const theme = EditorView.theme({
     height: "100%",
     background: "var(--color-surface)",
     color: "var(--color-text)",
-    fontSize: "var(--text-md)",
+    fontSize: "var(--text-body)",
   },
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": { fontFamily: "var(--font-body)", lineHeight: "var(--leading-body)" },

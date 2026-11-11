@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { TabMeta } from "../ipc";
 import { EraseIcon } from "./icons";
 
@@ -9,10 +9,14 @@ interface Props {
   editOnMount: boolean;
   onUpdate: (t: TabMeta) => void;
   onDelete: () => void;
+  /** 手机布局:名称前的 ≡ */
+  lead?: ReactNode;
+  /** 手机布局:同步符号等 */
+  tools?: ReactNode;
 }
 
 /** 页头:tab 名(点击改名)、单字、删除(原地再按一次确认)。 */
-export function PageHeader({ tab, canDelete, editOnMount, onUpdate, onDelete }: Props) {
+export function PageHeader({ tab, canDelete, editOnMount, onUpdate, onDelete, lead, tools }: Props) {
   const [editing, setEditing] = useState(editOnMount);
   const [name, setName] = useState(tab.name);
   const [glyph, setGlyph] = useState(tab.glyph);
@@ -50,6 +54,7 @@ export function PageHeader({ tab, canDelete, editOnMount, onUpdate, onDelete }: 
 
   return (
     <header className="ph">
+      {lead}
       {editing ? (
         <form
           className="ph-edit"
@@ -96,6 +101,7 @@ export function PageHeader({ tab, canDelete, editOnMount, onUpdate, onDelete }: 
         </button>
       )}
       <span className="ph-tools">
+        {tools}
         {canDelete && (
           <button
             type="button"

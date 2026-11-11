@@ -68,3 +68,9 @@ export const LockIcon = () => (
     <path d="M7 9V6.5a3 3 0 0 1 6 0V9" />
   </svg>
 );
+
+export const MenuIcon = () => (
+  <svg {...base} aria-hidden="true">
+    <path d="M3 5h14M3 10h14M3 15h14" />
+  </svg>
+);

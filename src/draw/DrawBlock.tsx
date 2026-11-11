@@ -1,5 +1,6 @@
 // 一个图块:平时只显示 SVG 预览(不加载 Excalidraw);点击后在块内原地打开 Excalidraw。
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useMedia, useNarrow } from "../app/useMedia";
 import type { Drawing } from "../ipc";
 import { CheckIcon, EraseIcon } from "../rail/icons";
 import type { DrawHost } from "./draw-host";
@@ -17,18 +18,6 @@ const ExcalidrawEditor = lazy(() => {
   return import("./ExcalidrawEditor");
 });
 
-const darkQuery = () => window.matchMedia("(prefers-color-scheme: dark)");
-function useDark() {
-  return useSyncExternalStore(
-    (fn) => {
-      const q = darkQuery();
-      q.addEventListener("change", fn);
-      return () => q.removeEventListener("change", fn);
-    },
-    () => darkQuery().matches,
-  );
-}
-
 interface Props {
   host: DrawHost;
   id: string;
@@ -36,9 +25,11 @@ interface Props {
 }
 
 export function DrawBlock({ host, id, blockKey }: Props) {
-  const editing = useSyncExternalStore(host.subscribe, () => host.editing === id);
+  const open = useSyncExternalStore(host.subscribe, () => host.editing === id);
   const epoch = useSyncExternalStore(host.subscribe, () => host.epoch);
-  const dark = useDark();
+  const dark = useMedia("(prefers-color-scheme: dark)");
+  const readOnly = useNarrow(); // 手机布局下图块只读(mvp U16)
+  const editing = open && !readOnly;
   /** undefined:读取中;null:还没有内容(新图块) */
   const [drawing, setDrawing] = useState<Drawing | null | undefined>(undefined);
   const handle = useRef<EditorHandle | null>(null);
@@ -121,6 +112,10 @@ export function DrawBlock({ host, id, blockKey }: Props) {
             )}
           </div>
         </>
+      ) : readOnly ? (
+        <div className="draw-preview" title="图块(手机布局下只读)">
+          {src ? <img src={src} alt="图块" draggable={false} /> : <span className="muted">◇</span>}
+        </div>
       ) : (
         <button
           type="button"

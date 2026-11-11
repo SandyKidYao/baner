@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type EditorApi, TabEditor } from "../blocks/TabEditor";
 import { appReady, type CryptoStatus, cryptoStatus } from "../ipc";
-import { GearIcon } from "../rail/icons";
+import { Drawer } from "../rail/Drawer";
+import { GearIcon, MenuIcon, PlusIcon } from "../rail/icons";
 import { isMod, MOD } from "../rail/keys";
 import { PageHeader } from "../rail/PageHeader";
 import { Rail } from "../rail/Rail";
@@ -9,6 +10,7 @@ import { clearPlaceholder, useTabs } from "../rail/useTabs";
 import { SettingsPanel } from "../settings/SettingsPanel";
 import { SyncButton } from "../sync/SyncButton";
 import { useSync } from "../sync/useSync";
+import { useNarrow } from "./useMedia";
 
 export default function App() {
   const { tabs, active, select, create, update, remove, refresh } = useTabs();
@@ -28,6 +30,12 @@ export default function App() {
     sync.onSaved();
   }, [refresh, sync.onSaved]);
   const [fresh, setFresh] = useState<string | null>(null); // 刚新建、需要立刻改名的 tab
+  const narrow = useNarrow();
+  const [drawer, setDrawer] = useState(false);
+  const closeDrawer = useCallback(() => setDrawer(false), []);
+  useEffect(() => {
+    if (!narrow) setDrawer(false);
+  }, [narrow]);
   const shown = useRef(false);
 
   // 隐藏窗口里不执行 requestAnimationFrame,所以用 setTimeout 触发显示(见 Spike perf-baseline)
@@ -67,34 +75,65 @@ export default function App() {
 
   if (!tabs || !active) return null;
 
+  const selectTab = (id: string) => {
+    setSettings(false);
+    select(id);
+  };
+  const syncButton = <SyncButton state={sync.state} onSync={sync.run} />;
+
   return (
-    <div className="app">
-      <Rail
-        tabs={tabs}
-        activeId={active.id}
-        onSelect={(id) => {
-          setSettings(false);
-          select(id);
-        }}
-        onCreate={newTab}
-        footer={
-          <>
-            <SyncButton state={sync.state} onSync={sync.run} />
-            <button
-              type="button"
-              className={settings ? "ib on" : "ib"}
-              aria-label="同步与加密"
-              aria-pressed={settings}
-              title={`同步与加密 ${MOD},`}
-              onClick={() => setSettings(!settings)}
-            >
-              <GearIcon />
-            </button>
-          </>
-        }
-      />
+    <div className={narrow ? "app narrow" : "app"}>
+      {narrow ? (
+        drawer && (
+          <Drawer
+            tabs={tabs}
+            activeId={active.id}
+            onSelect={selectTab}
+            onCreate={newTab}
+            onSettings={() => setSettings(true)}
+            onClose={closeDrawer}
+          />
+        )
+      ) : (
+        <Rail
+          tabs={tabs}
+          activeId={active.id}
+          onSelect={selectTab}
+          onCreate={newTab}
+          footer={
+            <>
+              {syncButton}
+              <button
+                type="button"
+                className={settings ? "ib on" : "ib"}
+                aria-label="同步与加密"
+                aria-pressed={settings}
+                title={`同步与加密 ${MOD},`}
+                onClick={() => setSettings(!settings)}
+              >
+                <GearIcon />
+              </button>
+            </>
+          }
+        />
+      )}
       <div className="main">
         <PageHeader
+          lead={
+            narrow && (
+              <button
+                type="button"
+                className="sym"
+                aria-label="打开 tab 列表"
+                aria-expanded={drawer}
+                title="tab 列表"
+                onClick={() => setDrawer(true)}
+              >
+                <MenuIcon />
+              </button>
+            )
+          }
+          tools={narrow && syncButton}
           key={active.id}
           tab={active}
           canDelete={tabs.length > 1}
@@ -132,8 +171,19 @@ export default function App() {
               onClose={() => setSettings(false)}
             />
           )}
+          {narrow && !settings && !active.locked && (
+            <button
+              type="button"
+              className="fab"
+              aria-label="新块"
+              title="新块"
+              onClick={() => editorApi.current?.insertBlock()}
+            >
+              <PlusIcon />
+            </button>
+          )}
         </main>
-        <footer className="keys">
+        <footer className="keys" hidden={narrow}>
           <span>
             <kbd>{MOD}↵</kbd> 新块
           </span>

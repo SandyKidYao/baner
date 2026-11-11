@@ -2,6 +2,7 @@
 import { EditorSelection } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { createRoot, type Root } from "react-dom/client";
+import { NARROW } from "../app/useMedia";
 import { blocksField, type DrawHooks } from "../blocks/editor";
 import { newBlock, serialize } from "../blocks/model";
 import { type Block, type Drawing, loadDrawing, saveDrawing } from "../ipc";
@@ -32,6 +33,7 @@ export class DrawHost {
     this.hooks = {
       widget: (b, first) => new DrawWidget(this, b.id, b.key, first),
       inserted: (id) => this.open(id),
+      canInsert: () => !window.matchMedia(NARROW).matches,
     };
   }
 

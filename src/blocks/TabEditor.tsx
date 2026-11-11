@@ -5,7 +5,7 @@ import { DrawHost } from "../draw/draw-host";
 import { type Block, deleteBlock, isLocked, loadBlocks, saveBlock, saveDrawing } from "../ipc";
 import { GearIcon, LockIcon } from "../rail/icons";
 import { debounce } from "./debounce";
-import { blockExtensions, drawHooks, insertDrawing } from "./editor";
+import { blockExtensions, drawHooks, insertBlockAfter, insertDrawing } from "./editor";
 import { type Diff, diff, isDraw, newBlock, parse, serialize } from "./model";
 
 /** 同步协调用:同步前先落盘,同步后按需从磁盘重新载入。 */
@@ -16,6 +16,8 @@ export interface EditorApi {
   reload: () => Promise<boolean>;
   /** 在当前块处插入图块并打开编辑 */
   insertDrawing: () => void;
+  /** 在当前块后新建文本块并聚焦(手机布局右下角的 +) */
+  insertBlock: () => void;
 }
 
 interface Props {
@@ -148,6 +150,11 @@ export function TabEditor({ tab, onReady, autoFocus = true, onSaved, api, onOpen
         },
         insertDrawing: () => {
           if (view) insertDrawing(view);
+        },
+        insertBlock: () => {
+          if (!view) return;
+          insertBlockAfter(view);
+          view.focus();
         },
       };
     }
