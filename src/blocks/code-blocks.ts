@@ -390,7 +390,9 @@ const theme = EditorView.theme({
     backgroundPosition: "calc(var(--line-pad) - 10px) 0",
     backgroundSize: "calc(100% - var(--line-pad) - 4px) 100%",
   },
-  ".cb-copy-inline": { float: "right", marginRight: "4px" },
+  // 原样显示时 ``` 行末的按钮:比一行矮,并且浮在下一行之上,底边不会被下一行的代码底色盖住
+  ".cb-copy-inline": { float: "right", marginRight: "4px", position: "relative", zIndex: "1" },
+  ".cb-copy-inline .cb-copy": { width: "22px", height: "18px", marginTop: "1px" },
   ".cb-copy": {
     width: "24px",
     height: "22px",
