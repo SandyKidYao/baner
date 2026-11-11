@@ -21,6 +21,8 @@ interface Props {
   onCryptoChanged: (s: CryptoStatus) => void;
   /** tab 的加密状态变了:刷新 tab 列表、重新载入编辑器、安排同步 */
   onTabsChanged: () => void;
+  /** 某个 tab 的同步开关变了:重新读取同步状态 */
+  onSyncChanged: () => Promise<unknown>;
   onClose: () => void;
 }
 
@@ -39,6 +41,7 @@ export function SettingsPanel({
   crypto,
   onCryptoChanged,
   onTabsChanged,
+  onSyncChanged,
   onClose,
 }: Props) {
   const [url, setUrl] = useState(status?.config.remoteUrl ?? "");
@@ -47,7 +50,7 @@ export function SettingsPanel({
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [unsynced, setUnsynced] = useState<string[]>(status?.config.unsyncedTabs ?? []);
+  const unsynced = status?.config.unsyncedTabs ?? [];
 
   const save = async () => {
     setBusy(true);
@@ -76,8 +79,8 @@ export function SettingsPanel({
 
   const toggle = async (id: string) => {
     const synced = unsynced.includes(id);
-    const c = await setTabSynced(id, synced);
-    setUnsynced(c.unsyncedTabs);
+    await setTabSynced(id, synced);
+    await onSyncChanged();
   };
 
   const d = status?.detect;

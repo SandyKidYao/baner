@@ -100,3 +100,16 @@ test("手机布局下图块只读:预览不可点,⌘D 不插入", async ({ page
   await expect(page.locator(".rail")).toBeVisible();
   await expect(page.getByRole("button", { name: "编辑图块" })).toBeVisible();
 });
+
+test("U18:抽屉里右键 tab 打开菜单,可以删除", async ({ page }) => {
+  await page.goto("/");
+  await menu(page).click();
+  await drawer(page).getByRole("button", { name: "新 tab" }).click();
+  await page.getByLabel("tab 名称").press("Enter");
+  await menu(page).click();
+  await drawer(page).getByRole("button", { name: "新 tab" }).first().click({ button: "right" });
+  const ctx = page.getByRole("menu");
+  await ctx.getByRole("menuitem", { name: "删除" }).click();
+  await ctx.getByRole("menuitem", { name: "再按一次确认删除" }).click();
+  await expect(page.locator(".ph-name")).toHaveText("工作");
+});

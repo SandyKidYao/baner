@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { TabMeta } from "../ipc";
 import { GearIcon, LockIcon, PlusIcon } from "./icons";
+import { isMenuKey, menuPoint } from "./Rail";
 
 interface Props {
   tabs: TabMeta[];
@@ -9,10 +10,12 @@ interface Props {
   onCreate: () => void;
   onSettings: () => void;
   onClose: () => void;
+  /** 右键或长按打开 tab 菜单 */
+  onMenu: (tab: TabMeta, x: number, y: number, opener: HTMLElement) => void;
 }
 
 /** 手机布局:轨道收进左侧抽屉。点遮罩或按 Esc 关闭,关闭后焦点回到 ≡。 */
-export function Drawer({ tabs, activeId, onSelect, onCreate, onSettings, onClose }: Props) {
+export function Drawer({ tabs, activeId, onSelect, onCreate, onSettings, onClose, onMenu }: Props) {
   const nav = useRef<HTMLElement>(null);
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
@@ -42,6 +45,17 @@ export function Drawer({ tabs, activeId, onSelect, onCreate, onSettings, onClose
             className={t.id === activeId ? "row act" : "row"}
             aria-current={t.id === activeId ? "page" : undefined}
             onClick={pick(() => onSelect(t.id))}
+            onKeyDown={(e) => {
+              if (!isMenuKey(e)) return;
+              e.preventDefault();
+              const r = e.currentTarget.getBoundingClientRect();
+              onMenu(t, r.left + 24, r.bottom, e.currentTarget);
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              const { x, y } = menuPoint(e);
+              onMenu(t, x, y, e.currentTarget);
+            }}
           >
             <span className="row-glyph" aria-hidden="true">
               {t.glyph}

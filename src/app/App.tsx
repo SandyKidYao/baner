@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type EditorApi, TabEditor } from "../blocks/TabEditor";
-import { appReady, type CryptoStatus, cryptoStatus } from "../ipc";
+import { describeCryptoError } from "../crypto/errors";
+import { appReady, type CryptoStatus, cryptoStatus, setTabEncrypted, setTabSynced } from "../ipc";
 import { Drawer } from "../rail/Drawer";
 import { GearIcon, MenuIcon, PlusIcon } from "../rail/icons";
 import { isMod, MOD } from "../rail/keys";
 import { PageHeader } from "../rail/PageHeader";
 import { Rail } from "../rail/Rail";
+import { TabMenu, type TabMenuTarget } from "../rail/TabMenu";
 import { clearPlaceholder, useTabs } from "../rail/useTabs";
 import { SettingsPanel } from "../settings/SettingsPanel";
 import { SyncButton } from "../sync/SyncButton";
@@ -13,7 +15,7 @@ import { useSync } from "../sync/useSync";
 import { useNarrow } from "./useMedia";
 
 export default function App() {
-  const { tabs, active, select, create, update, remove, refresh } = useTabs();
+  const { tabs, active, select, create, update, remove, move, refresh } = useTabs();
   const editorApi = useRef<EditorApi | null>(null);
   const sync = useSync({ editor: editorApi, activeTab: active?.id ?? null, onTabsChanged: refresh });
   const [settings, setSettings] = useState(false);
@@ -31,6 +33,12 @@ export default function App() {
   }, [refresh, sync.onSaved]);
   const [fresh, setFresh] = useState<string | null>(null); // 刚新建、需要立刻改名的 tab
   const narrow = useNarrow();
+  const [menu, setMenu] = useState<TabMenuTarget | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  const openMenu = useCallback(
+    (tab: TabMenuTarget["tab"], x: number, y: number, opener: HTMLElement) => setMenu({ tab, x, y, opener }),
+    [],
+  );
   const [drawer, setDrawer] = useState(false);
   const closeDrawer = useCallback(() => setDrawer(false), []);
   useEffect(() => {
@@ -80,6 +88,10 @@ export default function App() {
     select(id);
   };
   const syncButton = <SyncButton state={sync.state} onSync={sync.run} />;
+  const unsynced = sync.state.status?.config.unsyncedTabs ?? [];
+  const movable = tabs.filter((t) => !t.locked);
+  const menuTab = menu && tabs.find((t) => t.id === menu.tab.id);
+  const menuIndex = menuTab ? movable.findIndex((t) => t.id === menuTab.id) : -1;
 
   return (
     <div className={narrow ? "app narrow" : "app"}>
@@ -92,6 +104,7 @@ export default function App() {
             onCreate={newTab}
             onSettings={() => setSettings(true)}
             onClose={closeDrawer}
+            onMenu={openMenu}
           />
         )
       ) : (
@@ -100,6 +113,8 @@ export default function App() {
           activeId={active.id}
           onSelect={selectTab}
           onCreate={newTab}
+          onMove={move}
+          onMenu={openMenu}
           footer={
             <>
               {syncButton}
@@ -136,13 +151,11 @@ export default function App() {
           tools={narrow && syncButton}
           key={active.id}
           tab={active}
-          canDelete={tabs.length > 1}
           editOnMount={fresh === active.id}
           onUpdate={(t) => {
             setFresh(null);
             update(t);
           }}
-          onDelete={() => remove(active.id)}
         />
         <main className="page">
           <TabEditor
@@ -168,6 +181,7 @@ export default function App() {
                 contentChanged();
               }}
               onTabsChanged={contentChanged}
+              onSyncChanged={sync.refreshStatus}
               onClose={() => setSettings(false)}
             />
           )}
@@ -206,6 +220,36 @@ export default function App() {
           </button>
         </footer>
       </div>
+      {menu && menuTab && (
+        <TabMenu
+          {...menu}
+          tab={menuTab}
+          synced={!unsynced.includes(menuTab.id)}
+          cryptoReady={!!crypto?.configured}
+          canDelete={tabs.length > 1}
+          canMoveUp={menuIndex > 0}
+          canMoveDown={menuIndex >= 0 && menuIndex < movable.length - 1}
+          onMove={(dir) =>
+            move(menuTab.id, dir < 0 ? movable[menuIndex - 1].id : (movable[menuIndex + 2]?.id ?? null))
+          }
+          onToggleSync={async () => {
+            await setTabSynced(menuTab.id, unsynced.includes(menuTab.id));
+            await sync.refreshStatus();
+          }}
+          onToggleEncrypt={async () => {
+            try {
+              await editorApi.current?.flush();
+              await setTabEncrypted(menuTab.id, !menuTab.encrypted);
+            } catch (e) {
+              throw describeCryptoError(e);
+            }
+            await contentChanged();
+          }}
+          onOpenSettings={() => setSettings(true)}
+          onDelete={() => remove(menuTab.id)}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   );
 }

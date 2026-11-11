@@ -96,6 +96,33 @@ export function useTabs() {
     [tabs, activeId, select],
   );
 
+  /**
+   * 把 tab 移到 `before` 之前(null 表示移到末尾)。只在本机能读的 tab 之间排序:
+   * 加密且本机没有主密钥的 tab 改不了 tab.json,排序键固定排在最后。
+   */
+  const move = useCallback(
+    async (id: string, before: string | null) => {
+      if (!tabs) return;
+      const t = tabs.find((x) => x.id === id);
+      if (!t || t.locked || id === before) return;
+      const rest = tabs.filter((x) => !x.locked && x.id !== id);
+      const i = before ? rest.findIndex((x) => x.id === before) : rest.length;
+      if (i < 0) return;
+      const lo = rest[i - 1]?.key ?? null;
+      const hi = rest[i]?.key ?? null;
+      if ((lo === null || lo < t.key) && (hi === null || t.key < hi)) return; // 位置没变
+      const key = keyBetween(lo, hi);
+      const next = { ...t, key };
+      await saveTab(next);
+      setTabs(
+        tabs
+          .map((x) => (x.id === id ? next : x))
+          .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : a.id.localeCompare(b.id))),
+      );
+    },
+    [tabs],
+  );
+
   /** 同步后重新读取 tab 列表(可能有新增、改名、删除) */
   const refresh = useCallback(async () => {
     let list = await listTabs();
@@ -114,7 +141,7 @@ export function useTabs() {
   }, []);
 
   const active = tabs?.find((t) => t.id === activeId) ?? null;
-  return { tabs, active, select, create, update, remove, refresh };
+  return { tabs, active, select, create, update, remove, move, refresh };
 }
 
 /** 用户在占位 tab 里写了内容,它就成了正式 tab */

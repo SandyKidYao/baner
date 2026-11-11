@@ -1,32 +1,27 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { TabMeta } from "../ipc";
-import { EraseIcon } from "./icons";
 
 interface Props {
   tab: TabMeta;
-  canDelete: boolean;
   /** 新建的 tab 直接进入改名 */
   editOnMount: boolean;
   onUpdate: (t: TabMeta) => void;
-  onDelete: () => void;
   /** 手机布局:名称前的 ≡ */
   lead?: ReactNode;
-  /** 手机布局:同步符号等 */
+  /** 手机布局:同步符号 */
   tools?: ReactNode;
 }
 
-/** 页头:tab 名(点击改名)、单字、删除(原地再按一次确认)。 */
-export function PageHeader({ tab, canDelete, editOnMount, onUpdate, onDelete, lead, tools }: Props) {
+/** 页头:tab 名(点击改名)与单字。删除、同步、加密在 tab 的右键菜单里。 */
+export function PageHeader({ tab, editOnMount, onUpdate, lead, tools }: Props) {
   const [editing, setEditing] = useState(editOnMount);
   const [name, setName] = useState(tab.name);
   const [glyph, setGlyph] = useState(tab.glyph);
-  const [armed, setArmed] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setName(tab.name);
     setGlyph(tab.glyph);
-    setArmed(false);
   }, [tab]);
   useEffect(() => {
     if (editOnMount && !tab.locked) setEditing(true);
@@ -34,12 +29,6 @@ export function PageHeader({ tab, canDelete, editOnMount, onUpdate, onDelete, le
   useEffect(() => {
     if (editing) nameRef.current?.select();
   }, [editing]);
-  useEffect(() => {
-    if (!armed) return;
-    const t = setTimeout(() => setArmed(false), 3000);
-    return () => clearTimeout(t);
-  }, [armed]);
-
   const commit = () => {
     setEditing(false);
     // 单字没动、且原本就是旧名字的首字时,跟随新名字
@@ -100,21 +89,7 @@ export function PageHeader({ tab, canDelete, editOnMount, onUpdate, onDelete, le
           {tab.name}
         </button>
       )}
-      <span className="ph-tools">
-        {tools}
-        {canDelete && (
-          <button
-            type="button"
-            className={armed ? "sym danger armed" : "sym"}
-            aria-label={armed ? "再按一次删除这个 tab" : "删除 tab"}
-            title={armed ? "再按一次确认" : "删除 tab"}
-            onClick={() => (armed ? onDelete() : setArmed(true))}
-          >
-            <EraseIcon />
-            {armed && <span className="sym-text">再按一次确认</span>}
-          </button>
-        )}
-      </span>
+      {tools && <span className="ph-tools">{tools}</span>}
     </header>
   );
 }
