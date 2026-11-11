@@ -321,6 +321,29 @@ const plainClipboard = EditorView.clipboardOutputFilter.of((text) =>
     .join("\n"),
 );
 
+/**
+ * 当前块的序号:琥珀色小方块,与 tab 条上当前 tab 的单字方块一样(design.md v3.3)。
+ * 序号文字位置不变(块左右各缩进 island-gap,所以 left 是 14 - 6 - 4),方块与第一行文字垂直居中。
+ */
+export const curNo = {
+  left: "4px",
+  top: "calc(var(--space-3) + (var(--text-body) * var(--leading-body) - 20px) / 2)",
+  height: "20px",
+  padding: "0 4px",
+  borderRadius: "5px",
+  background: "var(--color-rail-accent)",
+  color: "var(--color-rail-on-accent)",
+  fontWeight: "var(--weight-strong)",
+  lineHeight: "20px",
+};
+/** 冲突块的序号:警告色描边的方块加「!」,与当前块的实心方块形状不同 */
+export const conflictNo = {
+  ...curNo,
+  background: "none",
+  color: "var(--color-warning)",
+  boxShadow: "inset 0 0 0 1.5px var(--color-warning)",
+};
+
 // 编辑器与块的样式。用 EditorView.theme 注入,优先级高于 CodeMirror 的基础主题。
 const theme = EditorView.theme({
   "&": {
@@ -358,21 +381,18 @@ const theme = EditorView.theme({
     lineHeight: "1.9",
     textIndent: "0",
   },
-  // 当前块:岛内的圆角高亮,左侧主色竖条(Islands)
+  // 当前块:岛内的圆角浅底,序号变成琥珀色方块(Islands)
   ".blk-cur, .blk-conflict": { margin: "0 var(--island-gap)", "--line-pad": "42px" },
-  ".blk-cur": {
-    background: "var(--color-current)",
-    boxShadow: "inset var(--current-bar) 0 0 var(--color-primary)",
-  },
+  ".blk-cur": { background: "var(--color-current)" },
   ".blk-cur.blk-first, .blk-conflict.blk-first": { borderTopLeftRadius: "8px", borderTopRightRadius: "8px" },
   ".blk-cur.blk-last, .blk-conflict.blk-last": {
     borderBottomLeftRadius: "8px",
     borderBottomRightRadius: "8px",
   },
-  ".blk-cur.blk-first::before, .blk-conflict.blk-first::before": { left: "8px" },
-  ".blk-cur.blk-first::before": { color: "var(--color-text)", fontWeight: "var(--weight-strong)" },
-  // 冲突块:更宽的警告色竖条(形状上也与当前块不同)
-  ".blk-conflict": { boxShadow: "inset 8px 0 0 var(--color-warning)" },
+  ".blk-cur.blk-first::before": curNo,
+  // 冲突块:警告色淡底,序号是描边方块加「!」(形状上也与当前块不同)
+  ".blk-conflict": { background: "color-mix(in srgb, var(--color-warning) 12%, var(--color-surface))" },
+  ".blk-conflict.blk-first::before": { ...conflictNo, content: 'attr(data-no) "!"' },
 });
 
 export function blockExtensions(): Extension[] {

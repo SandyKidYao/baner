@@ -68,7 +68,6 @@
   --island-gap: 6px; /* 岛与岛、岛与窗口边缘之间的缝 */
   --border-width: 1px;
   --focus-ring: 2px solid var(--color-primary);
-  --current-bar: 4px;
 
   --rail-width: 54px;
   --tab-size: 34px;

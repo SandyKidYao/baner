@@ -23,7 +23,7 @@ import { Decoration, type DecorationSet, EditorView, keymap, WidgetType } from "
 import type { SyntaxNode } from "@lezer/common";
 import { highlightTree, tags as t } from "@lezer/highlight";
 import type { BlockParser, Element, MarkdownConfig } from "@lezer/markdown";
-import { blocksField, currentBlock, drawEditingField } from "./editor";
+import { blocksField, curNo, currentBlock, drawEditingField } from "./editor";
 
 const CTRL = 31; // 分隔行与图块占位行以 \u001f 开头
 
@@ -421,7 +421,6 @@ const theme = EditorView.theme({
     margin: "0 var(--island-gap)",
     "--line-pad": "42px",
     background: "var(--color-current)",
-    boxShadow: "inset var(--current-bar) 0 0 var(--color-primary)",
   },
   ".cb-wrap.cb-cur.cb-top": { borderTopLeftRadius: "8px", borderTopRightRadius: "8px" },
   ".cb-wrap.cb-cur.cb-bottom": { borderBottomLeftRadius: "8px", borderBottomRightRadius: "8px" },
@@ -433,7 +432,7 @@ const theme = EditorView.theme({
     fontSize: "var(--text-sm)",
     lineHeight: "1.9",
   },
-  ".cb-cur .cb-no": { left: "8px", color: "var(--color-text)", fontWeight: "var(--weight-strong)" },
+  ".cb-cur .cb-no": curNo,
   ".cb": { borderRadius: "8px", background: "var(--color-code-bg)", overflow: "hidden" },
   ".cb-head": {
     display: "flex",
