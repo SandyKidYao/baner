@@ -37,6 +37,10 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "license": "MIT"
+    "license": "MIT",
+    "macOS": {
+      "signingIdentity": "-",
+      "minimumSystemVersion": "11.0"
+    }
   }
 }
