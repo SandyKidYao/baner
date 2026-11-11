@@ -11,8 +11,15 @@ import {
   syntaxTree,
 } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
-import { type EditorState, type Extension, type Range, StateField } from "@codemirror/state";
-import { Decoration, type DecorationSet, EditorView, WidgetType } from "@codemirror/view";
+import {
+  type EditorState,
+  type Extension,
+  Prec,
+  type Range,
+  StateEffect,
+  StateField,
+} from "@codemirror/state";
+import { Decoration, type DecorationSet, EditorView, keymap, WidgetType } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
 import { highlightTree, tags as t } from "@lezer/highlight";
 import type { BlockParser, Element, MarkdownConfig } from "@lezer/markdown";
@@ -113,11 +120,17 @@ async function copy(text: string): Promise<boolean> {
   }
 }
 
+// 图标与 rail/icons.tsx 同一风格:线宽 2、直角线头
+const svg = (d: string) =>
+  `<svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" aria-hidden="true"><path d="${d}"/></svg>`;
+const COPY_ICON = svg("M7 7h10v10H7zM13 7V3H3v10h4");
+const CHECK_ICON = svg("M4 10.5l4 4 8-9");
+
 function copyButton(getText: () => string): HTMLButtonElement {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "cb-copy";
-  btn.textContent = "复制";
+  btn.innerHTML = COPY_ICON;
   btn.title = "复制代码";
   btn.setAttribute("aria-label", "复制代码");
   btn.addEventListener("mousedown", (e) => e.preventDefault()); // 不让编辑器失焦或移动光标
@@ -125,10 +138,16 @@ function copyButton(getText: () => string): HTMLButtonElement {
     e.preventDefault();
     e.stopPropagation();
     const ok = await copy(getText());
-    btn.textContent = ok ? "已复制" : "复制失败";
-    btn.classList.toggle("done", ok);
+    if (!ok) {
+      btn.title = "复制失败";
+      return;
+    }
+    btn.innerHTML = CHECK_ICON;
+    btn.title = "已复制";
+    btn.classList.add("done");
     setTimeout(() => {
-      btn.textContent = "复制";
+      btn.innerHTML = COPY_ICON;
+      btn.title = "复制代码";
       btn.classList.remove("done");
     }, 1200);
   });
@@ -373,8 +392,11 @@ const theme = EditorView.theme({
   },
   ".cb-copy-inline": { float: "right", marginRight: "4px" },
   ".cb-copy": {
-    height: "20px",
-    padding: "0 8px",
+    width: "24px",
+    height: "22px",
+    display: "inline-grid",
+    placeItems: "center",
+    padding: "0",
     border: "var(--border-width) solid var(--color-divider)",
     borderRadius: "var(--radius)",
     background: "var(--color-surface)",
@@ -385,6 +407,10 @@ const theme = EditorView.theme({
   },
   ".cb-copy:hover": { color: "var(--color-text)", borderColor: "var(--color-border)" },
   ".cb-copy.done": { color: "var(--color-success)", borderColor: "var(--color-success)" },
+  ".cb-copy svg": { display: "block" },
+  ".cb-note": { marginLeft: "12px", fontSize: "var(--text-xs)", whiteSpace: "nowrap" },
+  ".cb-note.ok": { color: "var(--color-success)" },
+  ".cb-note.err": { color: "var(--color-danger)" },
   // 渲染好的代码块:块内的一个圆角盒子
   ".cb-wrap": { position: "relative", padding: "2px 20px 2px calc(var(--line-pad) - 10px)" },
   ".cb-wrap.cb-top": { paddingTop: "var(--space-3)" },
@@ -427,9 +453,148 @@ const theme = EditorView.theme({
   },
 });
 
+// ───────── 格式化(⇧⌥F)─────────
+
+/** 格式化的结果提示:显示在开头 ``` 那一行末尾,几秒后消失(不弹窗,不打断书写) */
+const setNote = StateEffect.define<{ at: number; text: string; ok: boolean } | null>();
+const noteField = StateField.define<{ at: number; text: string; ok: boolean } | null>({
+  create: () => null,
+  update(v, tr) {
+    for (const e of tr.effects) if (e.is(setNote)) return e.value;
+    return v && tr.docChanged ? { ...v, at: tr.changes.mapPos(v.at) } : v;
+  },
+  provide: (f) =>
+    EditorView.decorations.compute([f], (state) => {
+      const n = state.field(f);
+      if (!n) return Decoration.none;
+      const at = state.doc.lineAt(Math.min(n.at, state.doc.length)).to;
+      return Decoration.set([Decoration.widget({ widget: new NoteWidget(n.text, n.ok), side: 2 }).range(at)]);
+    }),
+});
+
+class NoteWidget extends WidgetType {
+  constructor(
+    readonly text: string,
+    readonly ok: boolean,
+  ) {
+    super();
+  }
+  eq(o: NoteWidget) {
+    return o.text === this.text && o.ok === this.ok;
+  }
+  toDOM() {
+    const el = document.createElement("span");
+    el.className = this.ok ? "cb-note ok" : "cb-note err";
+    el.setAttribute("role", "status");
+    el.textContent = `${this.ok ? "✓" : "✕"} ${this.text}`;
+    return el;
+  }
+}
+
+/** 光标所在的顶层代码块 */
+function fencedAt(state: EditorState, pos: number): SyntaxNode | null {
+  for (let n: SyntaxNode | null = syntaxTree(state).resolveInner(pos, -1); n; n = n.parent)
+    if (n.name === "FencedCode") return n;
+  for (let n: SyntaxNode | null = syntaxTree(state).resolveInner(pos, 1); n; n = n.parent)
+    if (n.name === "FencedCode") return n;
+  return null;
+}
+
+let noteTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** ⇧⌥F:格式化光标所在代码块的内容。光标不在代码块里时不处理。 */
+export function formatCodeBlock(view: EditorView): boolean {
+  const { state } = view;
+  const head = state.selection.main.head;
+  const node = fencedAt(state, head);
+  if (!node) return false;
+  const p = codeParts(state, node);
+  if (spansBlocks(state, p) || p.textTo <= p.textFrom) return true;
+  const code = state.doc.sliceString(p.textFrom, p.textTo);
+  const note = (text: string, ok: boolean) => {
+    clearTimeout(noteTimer);
+    view.dispatch({ effects: setNote.of({ at: p.from, text, ok }) });
+    noteTimer = setTimeout(() => view.dispatch({ effects: setNote.of(null) }), 2500);
+  };
+  void import("./format-code").then(async ({ formatCode }) => {
+    const r = await formatCode(code, p.lang);
+    // 格式化期间内容被改过:放弃,以免覆盖新的输入
+    if (view.state.doc.sliceString(p.textFrom, p.textTo) !== code) return;
+    if (!r.ok) return note(r.message, false);
+    if (r.code === code) return note("已经是格式化好的", true);
+    // 光标留在原来的行(按行号),列不超过该行长度
+    const doc = view.state.doc;
+    const curLine = doc.lineAt(view.state.selection.main.head);
+    const row = Math.max(0, curLine.number - doc.lineAt(p.textFrom).number);
+    const lines = r.code.split("\n");
+    const r0 = Math.min(row, lines.length - 1);
+    const col = Math.min(view.state.selection.main.head - curLine.from, lines[r0].length);
+    const anchor = p.textFrom + lines.slice(0, r0).reduce((n, l) => n + l.length + 1, 0) + col;
+    view.dispatch({
+      changes: { from: p.textFrom, to: p.textTo, insert: r.code },
+      selection: { anchor },
+      userEvent: "input.format",
+    });
+    note("已格式化", true);
+  });
+  return true;
+}
+
+/**
+ * 上下方向键:下一行是渲染好的代码块时(中间隔着块分隔也算),光标进到代码的最后一行或第一行,
+ * 代码块随之切回原样。否则 CodeMirror 会把整个代码块当成一个不可进入的整体直接跳过。
+ */
+function enterCode(dir: -1 | 1) {
+  return (view: EditorView): boolean => {
+    const set = view.state.field(codeWidgets, false);
+    const sel = view.state.selection.main;
+    if (!set || !sel.empty) return false;
+    const doc = view.state.doc;
+    const from = doc.lineAt(sel.head);
+    let n = from.number + dir;
+    while (n >= 1 && n <= doc.lines && doc.line(n).text.charCodeAt(0) === CTRL) n += dir;
+    if (n < 1 || n > doc.lines) return false;
+    const target = doc.line(n);
+    let p: CodeParts | null = null;
+    set.between(target.from, target.to, (_a, _b, deco) => {
+      p = (deco.spec.widget as CodeBlockWidget).p;
+    });
+    if (!p) return false;
+    const { textFrom, textTo, from: start } = p as CodeParts;
+    const line = textTo > textFrom ? doc.lineAt(dir < 0 ? textTo : textFrom) : doc.lineAt(start);
+    const col = Math.min(sel.head - from.from, line.length);
+    view.dispatch({ selection: { anchor: line.from + col }, scrollIntoView: true, userEvent: "select" });
+    return true;
+  };
+}
+
 export const codeBlocks = {
   /** 两种模式都要:高亮与样式 */
-  base: [syntaxHighlighting(codeStyle), theme] as Extension,
+  base: [
+    syntaxHighlighting(codeStyle),
+    theme,
+    noteField,
+    // 按物理键位判断:Mac 上 ⇧⌥F 输入的字符是「Ï」,CodeMirror 的 keymap 不会把它映射回 F
+    Prec.high(
+      EditorView.domEventHandlers({
+        keydown: (e, view) => {
+          if (e.code !== "KeyF" || !e.altKey || !e.shiftKey || e.metaKey || e.ctrlKey) return false;
+          // 不在代码块里时什么也不做,但仍吞掉按键,免得插入「Ï」
+          formatCodeBlock(view);
+          e.preventDefault();
+          return true;
+        },
+      }),
+    ),
+  ] as Extension,
   /** 只在所见模式 */
-  rendered: codeWidgets as Extension,
+  rendered: [
+    codeWidgets,
+    Prec.high(
+      keymap.of([
+        { key: "ArrowUp", run: enterCode(-1) },
+        { key: "ArrowDown", run: enterCode(1) },
+      ]),
+    ),
+  ] as Extension,
 };

@@ -29,8 +29,10 @@
     "@tauri-apps/api": "^2",
     "codemirror": "^6.0.2",
     "fractional-indexing": "^4.0.0",
+    "prettier": "^3.9.10",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "sql-formatter": "^15.9.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.6",

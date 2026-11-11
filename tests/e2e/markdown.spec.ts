@@ -136,7 +136,7 @@ test("代码块:所见模式渲染成带语言标签与复制按钮的盒子,代
   // 语言解析器按需加载后有高亮
   await expect(box.locator(".cb-line").first().locator("span").first()).toBeVisible({ timeout: 10_000 });
   await box.getByRole("button", { name: "复制代码" }).click();
-  await expect(box.getByRole("button", { name: "复制代码" })).toHaveText("已复制");
+  await expect(box.getByRole("button", { name: "复制代码" })).toHaveAttribute("title", "已复制"); // 图标变成 ✓
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
     'const a = 1; // 注释\nconsole.log("hi")',
   );
@@ -156,4 +156,57 @@ test("没闭合的代码块不会吞掉后面的块", async ({ page }) => {
   await page.keyboard.press("ControlOrMeta+Enter");
   await page.keyboard.type("x");
   await expect(page.locator(".cm-line.md-h2")).toHaveText("下一块的标题");
+});
+
+test("⇧⌥F 格式化光标所在代码块;语法错误和不支持的语言在 ``` 那一行末尾提示", async ({ page }) => {
+  await open(page);
+  await page.keyboard.type("```ts\nconst  a={b:1,c:[1,2]}\nfunction f( x ){return x*2}\n```");
+  await page.keyboard.press("ArrowUp"); // 回到代码里
+  await page.keyboard.press("Shift+Alt+f");
+  await expect(page.locator(".cb-note")).toHaveText("✓ 已格式化", { timeout: 15_000 });
+  await expect(page.locator(".cm-line.md-codeblock")).toHaveText([
+    "```ts",
+    "const a = { b: 1, c: [1, 2] };",
+    "function f(x) {",
+    "  return x * 2;",
+    "}",
+    "```",
+  ]);
+  await expect(page.locator(".cb-note")).toHaveCount(0, { timeout: 5_000 }); // 几秒后消失
+
+  // 语法错误:内容不变,提示第几行
+  await page.keyboard.press("ControlOrMeta+Enter");
+  await page.keyboard.type('```json\n{"a": 1,,}\n```');
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Shift+Alt+f");
+  await expect(page.locator(".cb-note")).toContainText("语法错误", { timeout: 15_000 });
+  await expect(page.locator(".cm-line.md-codeblock").filter({ hasText: '{"a": 1,,}' })).toHaveCount(1);
+
+  // 不支持的语言
+  await page.keyboard.press("ControlOrMeta+Enter");
+  await page.keyboard.type("```python\nx=1\n```");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Shift+Alt+f");
+  await expect(page.locator(".cb-note")).toHaveText("✕ 不支持格式化 python");
+});
+
+test("上下方向键可以进入渲染好的代码块(包括从下一块按 ↑)", async ({ page }) => {
+  await open(page);
+  await page.keyboard.type("上面");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("```ts\nconst a = 1;\nconst b = 2;\n```");
+  await page.keyboard.press("ControlOrMeta+Enter");
+  await page.keyboard.type("下一块");
+  await expect(page.locator(".cb")).toBeVisible();
+  await page.keyboard.press("ArrowUp"); // 越过块分隔,进到代码最后一行
+  await expect(page.locator(".cb")).toHaveCount(0);
+  await page.keyboard.type("X");
+  await expect(page.locator(".cm-line.md-codeblock").nth(2)).toHaveText(/X/);
+  // 回到「上面」那一行,再按 ↓ 进到代码第一行(列位置保留)
+  await line(page, 0).click();
+  await page.keyboard.press("End");
+  await expect(page.locator(".cb")).toBeVisible();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.type("Y");
+  await expect(page.locator(".cm-line.md-codeblock").nth(1)).toHaveText("coYnst a = 1;");
 });
