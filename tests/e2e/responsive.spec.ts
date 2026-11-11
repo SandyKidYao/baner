@@ -8,9 +8,9 @@ const drawer = (page: Page) => page.locator(".drawer");
 
 test.use({ viewport: PHONE });
 
-test("U18:窄窗口下轨道收进 ≡ 抽屉,当前 tab 名在顶部,快捷键提示隐藏", async ({ page }) => {
+test("U18:窄窗口下 tab 收进 ≡ 抽屉,当前 tab 名在顶部,快捷键提示隐藏", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator(".rail")).toHaveCount(0);
+  await expect(page.locator(".strip")).toHaveCount(0);
   await expect(menu(page)).toBeVisible();
   await expect(page.locator(".ph-name")).toHaveText("工作");
   await expect(page.locator(".keys")).toBeHidden();
@@ -95,9 +95,9 @@ test("手机布局下图块只读:预览不可点,⌘D 不插入", async ({ page
   await expect(page.getByTestId("draw-block")).toHaveCount(1);
   await expect(page.locator(".draw.editing")).toHaveCount(0);
 
-  // 窗口变宽后恢复轨道,图块可以编辑
+  // 窗口变宽后恢复 tab 条,图块可以编辑
   await page.setViewportSize({ width: 960, height: 720 });
-  await expect(page.locator(".rail")).toBeVisible();
+  await expect(page.locator(".strip")).toBeVisible();
   await expect(page.getByRole("button", { name: "编辑图块" })).toBeVisible();
 });
 

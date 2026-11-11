@@ -6,10 +6,10 @@ import { describeCryptoError } from "../crypto/errors";
 import { appReady, type CryptoStatus, cryptoStatus, setTabEncrypted, setTabSynced } from "../ipc";
 import { Drawer } from "../rail/Drawer";
 import { GearIcon, MenuIcon, PlusIcon } from "../rail/icons";
-import { isMod, MOD } from "../rail/keys";
+import { isMod, MOD, SHIFT_ALT } from "../rail/keys";
 import { PageHeader } from "../rail/PageHeader";
-import { Rail } from "../rail/Rail";
 import { TabMenu, type TabMenuTarget } from "../rail/TabMenu";
+import { TabStrip } from "../rail/TabStrip";
 import { clearPlaceholder, useTabs } from "../rail/useTabs";
 import { SettingsPanel } from "../settings/SettingsPanel";
 import { SyncButton } from "../sync/SyncButton";
@@ -50,7 +50,8 @@ export default function App() {
     setEpoch((n) => n + 1);
     sync.onSaved();
   }, [refresh, sync.onSaved]);
-  const [fresh, setFresh] = useState<string | null>(null); // 刚新建、需要立刻改名的 tab
+  // 正在改名的 tab(刚新建的 tab 直接进入改名)
+  const [renaming, setRenaming] = useState<string | null>(null);
   const narrow = useNarrow();
   const [mdMode, setMdMode] = useState<MdMode>(readMdMode);
   const changeMdMode = useCallback((m: MdMode) => {
@@ -80,7 +81,7 @@ export default function App() {
   const newTab = useCallback(async () => {
     const t = await create();
     if (!t) return;
-    setFresh(t.id);
+    setRenaming(t.id);
     select(t.id);
   }, [create, select]);
 
@@ -112,6 +113,14 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [tabs, select, newTab]);
 
+  const renamed = useCallback(
+    (t: Parameters<typeof update>[0] | null) => {
+      setRenaming(null);
+      if (t) update(t);
+    },
+    [update],
+  );
+
   if (!tabs || !active) return null;
 
   const selectTab = (id: string) => {
@@ -127,15 +136,27 @@ export default function App() {
 
   const header = (
     <PageHeader
-      key={active.id}
       tab={active}
       synced={sync.state.phase === "off" ? null : !unsynced.includes(active.id)}
       narrow={narrow}
-      editOnMount={fresh === active.id}
-      onUpdate={(t) => {
-        setFresh(null);
-        update(t);
-      }}
+      renaming={renaming === active.id}
+      onRename={() => setRenaming(active.id)}
+      onRenamed={renamed}
+      strip={
+        narrow ? undefined : (
+          <TabStrip
+            tabs={tabs}
+            activeId={active.id}
+            onSelect={selectTab}
+            onCreate={newTab}
+            onMove={move}
+            onMenu={openMenu}
+            renaming={renaming}
+            onRename={setRenaming}
+            onRenamed={renamed}
+          />
+        )
+      }
       lead={
         narrow && (
           <button
@@ -177,45 +198,19 @@ export default function App() {
 
   return (
     <div className={narrow ? "app narrow" : "app"}>
-      {narrow ? (
-        drawer && (
-          <Drawer
-            tabs={tabs}
-            activeId={active.id}
-            onSelect={selectTab}
-            onCreate={newTab}
-            onSettings={() => setSettings(true)}
-            onClose={closeDrawer}
-            onMenu={openMenu}
-          />
-        )
-      ) : (
-        <Rail
+      {narrow && drawer && (
+        <Drawer
           tabs={tabs}
           activeId={active.id}
           onSelect={selectTab}
           onCreate={newTab}
-          onMove={move}
+          onSettings={() => setSettings(true)}
+          onClose={closeDrawer}
           onMenu={openMenu}
-          footer={
-            <>
-              {syncButton}
-              <button
-                type="button"
-                className={settings ? "ib on" : "ib"}
-                aria-label="同步与加密"
-                aria-pressed={settings}
-                title={`同步与加密 ${MOD},`}
-                onClick={() => setSettings(!settings)}
-              >
-                <GearIcon />
-              </button>
-            </>
-          }
         />
       )}
-      <div className="main">
-        {narrow && header}
+      {narrow && header}
+      <div className="work">
         <div className="island page-island">
           {!narrow && header}
           <main className="page">
@@ -224,7 +219,7 @@ export default function App() {
               tab={active.id}
               mdMode={mdMode}
               onReady={onReady}
-              autoFocus={fresh !== active.id}
+              autoFocus={renaming !== active.id}
               onSaved={() => {
                 clearPlaceholder(active.id);
                 sync.onSaved();
@@ -246,30 +241,57 @@ export default function App() {
             )}
           </main>
         </div>
-        <footer className="keys" hidden={narrow}>
-          <span>
-            <kbd>{MOD}↵</kbd> 新块
-          </span>
-          <span>
-            <kbd>{MOD}A</kbd> 选块
-          </span>
-          <button
-            type="button"
-            className="keys-btn"
-            title={`插入图块 ${MOD}D`}
-            onClick={() => editorApi.current?.insertDrawing()}
-          >
-            <kbd>{MOD}D</kbd>◇ 图块
-          </button>
-          <span>
-            <kbd>{MOD}E</kbd> 所见 / 源码
-          </span>
-          <span>
-            <kbd>{MOD}1–9</kbd> tab
-          </span>
-        </footer>
+        {!narrow && settingsPanel}
       </div>
-      {!narrow && settingsPanel}
+      {!narrow && (
+        <footer className="keys">
+          {/* 按常用程度排列;窗口窄时放不下的整项隐藏(见 base.css .keys-hints) */}
+          <div className="keys-hints">
+            <span>
+              <kbd>{MOD}↵</kbd>新块
+            </span>
+            <button
+              type="button"
+              className="keys-btn"
+              title={`插入图块 ${MOD}D`}
+              onClick={() => editorApi.current?.insertDrawing()}
+            >
+              <kbd>{MOD}D</kbd>◇ 图块
+            </button>
+            <span>
+              <kbd>{MOD}A</kbd>选块
+            </span>
+            <span>
+              <kbd>{MOD}E</kbd>所见 / 源码
+            </span>
+            <span>
+              <kbd>{MOD}T</kbd>新 tab
+            </span>
+            <span>
+              <kbd>{MOD}1–9</kbd>切换 tab
+            </span>
+            <span>
+              <kbd>{SHIFT_ALT}F</kbd>格式化代码
+            </span>
+            <span>
+              <kbd>{MOD},</kbd>同步与加密
+            </span>
+          </div>
+          <div className="keys-end">
+            {syncButton}
+            <button
+              type="button"
+              className={settings ? "ib on" : "ib"}
+              aria-label="同步与加密"
+              aria-pressed={settings}
+              title={`同步与加密 ${MOD},`}
+              onClick={() => setSettings(!settings)}
+            >
+              <GearIcon />
+            </button>
+          </div>
+        </footer>
+      )}
       {menu && menuTab && (
         <TabMenu
           {...menu}
@@ -279,6 +301,11 @@ export default function App() {
           canDelete={tabs.length > 1}
           canMoveUp={menuIndex > 0}
           canMoveDown={menuIndex >= 0 && menuIndex < movable.length - 1}
+          horizontal={!narrow}
+          onRename={() => {
+            select(menuTab.id);
+            setRenaming(menuTab.id);
+          }}
           onMove={(dir) =>
             move(menuTab.id, dir < 0 ? movable[menuIndex - 1].id : (movable[menuIndex + 2]?.id ?? null))
           }

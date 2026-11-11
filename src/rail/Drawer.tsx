@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { TabMeta } from "../ipc";
 import { GearIcon, LockIcon, PlusIcon } from "./icons";
-import { isMenuKey, menuPoint } from "./Rail";
+import { isMenuKey, menuPoint } from "./TabStrip";
 
 interface Props {
   tabs: TabMeta[];

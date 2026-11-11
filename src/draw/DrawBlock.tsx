@@ -13,7 +13,7 @@ import {
 } from "react";
 import { useMedia, useNarrow } from "../app/useMedia";
 import type { Drawing } from "../ipc";
-import { CheckIcon, EraseIcon } from "../rail/icons";
+import { CheckIcon, TrashIcon } from "../rail/icons";
 import { isMod, MOD } from "../rail/keys";
 import type { DrawHost } from "./draw-host";
 import type { DrawTool, EditorHandle } from "./ExcalidrawEditor";
@@ -212,12 +212,12 @@ export function DrawBlock({ host, id, blockKey }: Props) {
         <span className="dend">
           <button
             type="button"
-            className="sym"
+            className="sym danger"
             aria-label="删除图块"
-            title="删除图块(⌘Z 可撤销)"
+            title={`删除图块(${MOD}Z 可撤销)`}
             onClick={remove}
           >
-            <EraseIcon />
+            <TrashIcon />
           </button>
           <button type="button" className="sym on" aria-label="完成" title={`完成 ${MOD}↵`} onClick={done}>
             <CheckIcon />

@@ -83,9 +83,9 @@ async function configureWithIncoming(page: Page) {
 
 test("新设备首次同步:自动建的空「工作」tab 被远端内容取代", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator(".rail button.tab:not(.add)")).toHaveText(["工"]);
+  await expect(page.locator(".strip .tab .tab-g")).toHaveText(["工"]);
   await configureWithIncoming(page);
-  await expect(page.locator(".rail button.tab:not(.add)")).toHaveText(["需"]);
+  await expect(page.locator(".strip .tab .tab-g")).toHaveText(["需"]);
   await page.getByRole("button", { name: "关闭" }).click();
   await expect(page.locator(".cm-line.blk-first").first()).toHaveText("来自另一台设备");
 });
@@ -96,5 +96,5 @@ test("占位 tab 里写过内容就保留", async ({ page }) => {
   await page.keyboard.type("我自己的内容");
   await page.waitForTimeout(450);
   await configureWithIncoming(page);
-  await expect(page.locator(".rail button.tab:not(.add)")).toHaveText(["工", "需"]);
+  await expect(page.locator(".strip .tab .tab-g")).toHaveText(["工", "需"]);
 });

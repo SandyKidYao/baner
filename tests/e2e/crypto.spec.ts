@@ -28,7 +28,7 @@ test("U10:设置主密钥(校验长度与两次一致),然后给 tab 开启加�
   await expect(lock).toBeEnabled();
   await lock.click();
   await expect(lock).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(".rail .tab.act .badge")).toBeVisible();
+  await expect(page.locator(".strip .tab.act .badge")).toBeVisible();
   await page.getByRole("button", { name: "关闭" }).click();
   await expect(page.locator(".ph-meta .ph-lock")).toContainText("加密"); // 页头状态区显示锁
 });
@@ -46,7 +46,7 @@ test("另一台设备:本机没有主密钥时加密 tab 显示锁;输入正确�
     ),
   );
   await page.reload();
-  await expect(page.getByRole("button", { name: "加密 tab" })).toHaveText("⚿");
+  await expect(page.getByRole("button", { name: "加密 tab" }).locator(".tab-g")).toHaveText("⚿");
   await expect(page.getByText("本机未配置主密钥")).toBeVisible();
 
   await page.getByRole("button", { name: "去配置主密钥" }).click();
@@ -59,6 +59,6 @@ test("另一台设备:本机没有主密钥时加密 tab 显示锁;输入正确�
   await expect(panel(page).getByText("本机已配置主密钥")).toBeVisible();
 
   await page.getByRole("button", { name: "关闭" }).click();
-  await expect(page.locator(".rail .tab.act")).toHaveText("钥");
+  await expect(page.locator(".strip .tab.act .tab-g")).toHaveText("钥");
   await expect(page.locator(".cm-line.blk-first").first()).toHaveText("GITHUB_TOKEN=ghp_xxx");
 });

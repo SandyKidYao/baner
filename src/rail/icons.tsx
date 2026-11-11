@@ -15,10 +15,9 @@ export const PlusIcon = () => (
   </svg>
 );
 
-export const EraseIcon = () => (
+export const TrashIcon = () => (
   <svg {...base} aria-hidden="true">
-    <path d="M7 5h10v10H7l-4-5z" />
-    <path d="M10 8l4 4M14 8l-4 4" />
+    <path d="M3 5.5h14M8 5.5V3h4v2.5M5 5.5 6 17h8l1-11.5M8.5 9v5M11.5 9v5" />
   </svg>
 );
 

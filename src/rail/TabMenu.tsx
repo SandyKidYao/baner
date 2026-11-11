@@ -17,6 +17,9 @@ interface Props extends TabMenuTarget {
   canDelete: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
+  /** 桌面上 tab 横排:「左移 / 右移」;手机抽屉里竖排:「上移 / 下移」 */
+  horizontal: boolean;
+  onRename: () => void;
   onMove: (dir: -1 | 1) => void;
   onToggleSync: () => Promise<void>;
   onToggleEncrypt: () => Promise<void>;
@@ -26,7 +29,7 @@ interface Props extends TabMenuTarget {
 }
 
 /**
- * tab 的右键菜单:上移、下移(拖动排序的键盘替代)、同步、加密、删除。
+ * tab 的右键菜单:改名、左移 / 右移(拖动排序的键盘替代)、同步、加密、删除。
  * 删除与其他不可逆操作一样,在原位置变成「再按一次确认」(design.md UX 原则 4)。
  */
 export function TabMenu(p: Props) {
@@ -110,6 +113,18 @@ export function TabMenu(p: Props) {
       <button
         type="button"
         role="menuitem"
+        disabled={tab.locked}
+        onClick={() => {
+          onClose();
+          p.onRename();
+        }}
+      >
+        <span className="ctx-check" />
+        改名
+      </button>
+      <button
+        type="button"
+        role="menuitem"
         disabled={!p.canMoveUp}
         onClick={() => {
           p.onMove(-1);
@@ -117,7 +132,7 @@ export function TabMenu(p: Props) {
         }}
       >
         <span className="ctx-check" />
-        上移
+        {p.horizontal ? "左移" : "上移"}
       </button>
       <button
         type="button"
@@ -129,7 +144,7 @@ export function TabMenu(p: Props) {
         }}
       >
         <span className="ctx-check" />
-        下移
+        {p.horizontal ? "右移" : "下移"}
       </button>
       <hr />
       <button

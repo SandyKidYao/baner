@@ -1,8 +1,9 @@
 /* 界面样式(Islands,design.md v3)。编辑器内部的样式在 src/blocks/editor.ts、markdown.ts 的
  * EditorView.theme 里(需要压过 CodeMirror 的基础主题)。
  *
- * 结构:窗口底色(--color-rail,靛蓝)上浮着圆角的岛。桌面:轨道直接放在底色上 | 页面岛(页头 + 编辑器)
- * | 打开配置时右侧再开一个岛;快捷键提示也在底色上,像状态栏。手机:顶栏在底色上,页面是一整块岛。
+ * 结构:窗口底色(--color-rail,靛蓝)上浮着圆角的岛。桌面:页面岛(顶部 tab 条 + 编辑器)| 打开配置时
+ * 右侧再开一个岛,两个岛底边对齐;最下面一行在底色上,像状态栏:左边快捷键提示,右边同步与 ⚙。
+ * 手机:顶栏在底色上,页面是一整块岛,tab 收进 ≡ 抽屉。
  */
 
 *,
@@ -48,16 +49,16 @@ svg {
 /* ───────────── 布局 ───────────── */
 .app {
   display: flex;
+  flex-direction: column;
   height: 100%;
-  gap: var(--island-gap);
-  padding: var(--island-gap) var(--island-gap) 0 0;
+  padding: var(--island-gap) var(--island-gap) 0;
   background: var(--color-rail);
 }
-.main {
+.work {
   flex: 1;
-  min-width: 0;
+  min-height: 0;
   display: flex;
-  flex-direction: column;
+  gap: var(--island-gap);
 }
 .island {
   background: var(--color-surface);
@@ -66,6 +67,7 @@ svg {
 }
 .page-island {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -81,101 +83,17 @@ svg {
   height: 100%;
 }
 
-/* ───────────── 轨道:符号直接放在窗口底色上 ───────────── */
-.rail {
-  width: var(--rail-width);
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) 0 var(--space-3);
-  overflow-y: auto;
-  color: var(--color-rail-text);
-}
-.rail .tab,
-.rail .ib {
-  position: relative;
-  width: 36px;
-  height: 36px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--color-rail-text);
-  font: var(--weight-normal) 14px var(--font-ui);
-  cursor: pointer;
-  touch-action: none;
-}
-.rail .tab:hover,
-.rail .ib:hover {
-  background: var(--color-rail-hover);
-}
-.rail .tab.act {
-  background: var(--color-rail-accent);
-  color: var(--color-rail-on-accent);
-  font-weight: var(--weight-strong);
-}
-.rail .tab.add {
-  width: 34px;
-  height: 34px;
-  border: var(--border-width) dashed var(--color-rail-muted);
-}
-.rail .ib.on {
-  background: var(--color-rail-hover);
-  box-shadow: inset 0 0 0 var(--border-width) var(--color-rail-muted);
-}
-.rail :focus-visible {
-  outline: 2px solid var(--color-rail-accent);
-  outline-offset: 1px;
-}
-.rail-spacer {
-  flex: 1;
-}
-.rail .badge {
-  position: absolute;
-  right: -3px;
-  bottom: -3px;
-  width: 15px;
-  height: 15px;
-  display: grid;
-  place-items: center;
-  border-radius: 5px;
-  background: var(--color-rail);
-  color: var(--color-rail-text);
-}
-.rail .badge svg {
-  width: 11px;
-  height: 11px;
-}
-/* 拖动排序:被拖的 tab 跟随指针,插入点显示一条琥珀色线 */
-.rail .tab.dragging {
-  z-index: 2;
-  opacity: 0.85;
-  box-shadow: inset 0 0 0 var(--border-width) var(--color-rail-accent);
-  cursor: grabbing;
-}
-.rail .tab.drop-above {
-  box-shadow: 0 -5px 0 -3px var(--color-rail-accent);
-}
-.rail .tab.drop-below {
-  box-shadow: 0 5px 0 -3px var(--color-rail-accent);
-}
-
-/* 同步符号(轨道底部;手机布局在页头) */
+/* 同步符号(桌面在状态栏右侧;手机布局在顶栏) */
 .sync {
   position: relative;
 }
-.rail .sync-btn.idle {
+.keys .sync-btn.idle {
   color: var(--color-rail-accent);
 }
-.rail .sync-btn.error {
+.keys .sync-btn.error {
   color: #ff8a7a; /* 底色在两种模式下都是深靛色,用暗色主题的危险色 */
 }
-.rail .sync-btn .badge {
+.keys .sync-btn .badge {
   color: var(--color-rail-accent);
 }
 .sync-btn.syncing svg {
@@ -203,8 +121,8 @@ svg {
 }
 .sync-msg {
   position: absolute;
-  left: calc(100% + 8px);
-  bottom: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
   z-index: 10;
   display: flex;
   align-items: center;
@@ -218,7 +136,7 @@ svg {
   font-size: var(--text-sm);
 }
 
-/* ───────────── 页头:页面岛顶部「选中的 tab」 ───────────── */
+/* ───────────── 页头:页面岛顶部,左边 tab 条,右边当前 tab 的状态与编辑模式 ───────────── */
 .ph {
   display: flex;
   align-items: center;
@@ -233,28 +151,140 @@ svg {
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
-  height: 32px;
-  margin-top: 6px;
-  padding: 0 var(--space-3) 0 var(--space-2);
-  border-radius: var(--radius) var(--radius) 0 0;
-  background: var(--color-surface-2);
-  box-shadow: inset 0 -2px 0 var(--color-primary);
 }
-.ph-g {
+
+/* tab 条:tab 贴着页头底边;当前 tab 是浅底 + 主色下划线,其余是淡色文字 */
+.strip {
+  align-self: stretch;
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+.strip-tabs {
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.strip .tab {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 200px;
+  height: 32px;
+  padding: 0 var(--space-3) 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: none;
+  color: var(--color-muted);
+  font: var(--weight-normal) var(--text-md) var(--font-ui);
+  cursor: pointer;
+  touch-action: none;
+}
+.strip .tab:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+.strip .tab.act {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-weight: var(--weight-strong);
+  box-shadow: inset 0 -2px 0 var(--color-primary);
+  cursor: text;
+}
+.strip .tab.renaming {
+  max-width: none;
+  padding: 0 var(--space-1);
+  cursor: default;
+}
+.strip .ph-edit input {
+  padding: 1px 6px;
+}
+.strip .ph-edit .ph-name-input {
+  width: 12em;
+}
+.strip .tab:focus-visible {
+  outline-offset: -2px;
+}
+.tab-g {
   width: 20px;
   height: 20px;
   flex: none;
   display: grid;
   place-items: center;
   border-radius: 5px;
-  background: var(--color-rail-accent);
-  color: var(--color-rail-on-accent);
+  background: var(--color-hover);
   font-size: var(--text-xs);
   font-weight: var(--weight-strong);
 }
-.ph-g svg {
+.tab.act .tab-g {
+  background: var(--color-rail-accent);
+  color: var(--color-rail-on-accent);
+}
+.tab-n {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.strip .badge {
+  display: grid;
+  color: var(--color-muted);
+}
+.strip .badge svg {
   width: 12px;
   height: 12px;
+}
+.tab-add {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  align-self: center;
+  margin-left: var(--space-1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.tab-add svg {
+  width: 16px;
+  height: 16px;
+}
+.tab-add:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+/* 拖动排序:被拖的 tab 跟随指针,插入点显示一条主色竖线 */
+.strip .tab.dragging {
+  z-index: 2;
+  opacity: 0.85;
+  cursor: grabbing;
+}
+.strip .tab.drop-before::before,
+.strip .tab.drop-after::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--color-primary);
+}
+.strip .tab.drop-before::before {
+  left: -2px;
+}
+.strip .tab.drop-after::after {
+  right: -2px;
 }
 .ph-name {
   min-width: 0;
@@ -281,7 +311,8 @@ svg {
   padding: 2px 6px;
 }
 .ph-edit .ph-glyph {
-  width: 3ch;
+  width: 32px;
+  padding-inline: 0;
   text-align: center;
 }
 .ph-edit input:focus {
@@ -363,21 +394,39 @@ svg {
   background: var(--color-primary);
   color: var(--color-on-primary);
 }
+.sym.danger:hover {
+  color: var(--color-danger);
+}
 
-/* ───────────── 快捷键提示:窗口底色上的状态栏 ───────────── */
+/* ───────────── 状态栏:窗口底色上,左边快捷键提示,右边同步与 ⚙ ───────────── */
 .keys {
+  flex: none;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0 var(--space-4);
   align-items: center;
-  min-height: 28px;
-  padding: 0 var(--space-1);
+  gap: var(--space-4);
+  height: 34px;
+  padding: 0 0 0 var(--space-1);
   color: var(--color-rail-muted);
   font-size: var(--text-xs);
   line-height: var(--leading-ui);
 }
-.keys[hidden] {
-  display: none;
+/* 一行放不下时,排在后面的整项换到第二行并被裁掉,不会出现半截提示 */
+.keys-hints {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: flex-start;
+  gap: 0 var(--space-4);
+  overflow: hidden;
+}
+.keys-hints > * {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
 }
 .keys kbd {
   font: inherit;
@@ -385,7 +434,7 @@ svg {
   border: var(--border-width) solid var(--color-rail-muted);
   border-radius: 4px;
   padding: 0 4px;
-  margin-right: 4px;
+  margin-right: 6px;
 }
 .keys .keys-btn {
   padding: 0;
@@ -401,6 +450,51 @@ svg {
 .keys :focus-visible {
   outline-color: var(--color-rail-accent);
 }
+.keys-end {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.keys .ib {
+  position: relative;
+  width: 30px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--color-rail-text);
+  cursor: pointer;
+}
+.keys .ib svg {
+  width: 16px;
+  height: 16px;
+}
+.keys .ib:hover {
+  background: var(--color-rail-hover);
+}
+.keys .ib.on {
+  background: var(--color-rail-hover);
+  box-shadow: inset 0 0 0 var(--border-width) var(--color-rail-muted);
+}
+.keys .badge {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 13px;
+  height: 13px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  background: var(--color-rail);
+}
+.keys .badge svg {
+  width: 10px;
+  height: 10px;
+}
 
 /* ───────────── 同步与加密:桌面是右侧的岛,手机盖住页面 ───────────── */
 .panel {
@@ -409,10 +503,9 @@ svg {
   background: var(--color-surface);
   color: var(--color-text);
 }
-.app > .panel {
+.work > .panel {
   width: 340px;
   flex: none;
-  margin-bottom: var(--island-gap);
   border-radius: var(--radius-island);
 }
 .page > .panel {
