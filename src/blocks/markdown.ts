@@ -384,7 +384,6 @@ const sourceTheme = EditorView.theme({
   // 左侧多一列行号:块序号在 14px 处,行号右对齐在它右边
   // 加 &.md-source 提高优先级,压过 editor.ts 里同名的规则
   "&.md-source .cm-content": { "--line-pad": "76px" },
-  "&.md-source .blk-cur, &.md-source .blk-conflict, &.md-source .cb-wrap.cb-cur": { "--line-pad": "70px" },
   ".cm-line[data-ln]::after": {
     content: "attr(data-ln)",
     position: "absolute",

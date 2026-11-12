@@ -417,13 +417,7 @@ const theme = EditorView.theme({
   ".cb-wrap": { position: "relative", padding: "2px 20px 2px calc(var(--line-pad) - 10px)" },
   ".cb-wrap.cb-top": { paddingTop: "var(--space-3)" },
   ".cb-wrap.cb-bottom": { paddingBottom: "var(--space-3)" },
-  ".cb-wrap.cb-cur": {
-    margin: "0 var(--island-gap)",
-    "--line-pad": "42px",
-    background: "var(--color-current)",
-  },
-  ".cb-wrap.cb-cur.cb-top": { borderTopLeftRadius: "8px", borderTopRightRadius: "8px" },
-  ".cb-wrap.cb-cur.cb-bottom": { borderBottomLeftRadius: "8px", borderBottomRightRadius: "8px" },
+  ".cb-wrap.cb-cur": { background: "var(--color-current)" },
   ".cb-no": {
     position: "absolute",
     left: "14px",

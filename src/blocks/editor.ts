@@ -324,10 +324,10 @@ const plainClipboard = EditorView.clipboardOutputFilter.of((text) =>
 
 /**
  * 当前块的序号:琥珀色小方块,与 tab 条上当前 tab 的单字方块一样(design.md v3.3)。
- * 序号文字位置不变(块左右各缩进 island-gap,所以 left 是 14 - 6 - 4),方块与第一行文字垂直居中。
+ * 序号文字位置不变(方块左右各有 4px 内边距,所以 left 是 14 - 4),方块与第一行文字垂直居中。
  */
 export const curNo = {
-  left: "4px",
+  left: "10px",
   top: "calc(var(--space-3) + (var(--text-body) * var(--leading-body) - 20px) / 2)",
   height: "20px",
   padding: "0 4px",
@@ -382,14 +382,8 @@ const theme = EditorView.theme({
     lineHeight: "1.9",
     textIndent: "0",
   },
-  // 当前块:岛内的圆角浅底,序号变成琥珀色方块(Islands)
-  ".blk-cur, .blk-conflict": { margin: "0 var(--island-gap)", "--line-pad": "42px" },
+  // 当前块:撑满岛宽的直角浅底,序号变成琥珀色方块
   ".blk-cur": { background: "var(--color-current)" },
-  ".blk-cur.blk-first, .blk-conflict.blk-first": { borderTopLeftRadius: "8px", borderTopRightRadius: "8px" },
-  ".blk-cur.blk-last, .blk-conflict.blk-last": {
-    borderBottomLeftRadius: "8px",
-    borderBottomRightRadius: "8px",
-  },
   ".blk-cur.blk-first::before": curNo,
   // 冲突块:警告色淡底,序号是描边方块加「!」(形状上也与当前块不同)
   ".blk-conflict": { background: "color-mix(in srgb, var(--color-warning) 12%, var(--color-surface))" },

@@ -860,9 +860,6 @@ svg {
 }
 /* 编辑中:就是一个「当前块」,没有额外的边框盒子 */
 .draw.editing {
-  margin: 0 var(--island-gap);
-  padding-left: 42px;
-  border-radius: 8px;
   background: var(--color-current);
 }
 .draw-preview {
