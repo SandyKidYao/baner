@@ -72,3 +72,17 @@ test("U6:删除块后,重启也不会再出现", async ({ page }) => {
   await expect(blockLines(page)).toHaveCount(1);
   await expect(blockLines(page).first()).toHaveText("keep");
 });
+
+test("文末可以再往上滚约一屏,最后一行能滚到窗口上部", async ({ page }) => {
+  await open(page);
+  for (let i = 0; i < 60; i++) await page.keyboard.press("Enter");
+  await page.keyboard.type("最后一行");
+  const scroller = page.locator(".cm-scroller");
+  await scroller.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  const box = await scroller.boundingBox();
+  const last = await page.locator(".cm-line", { hasText: "最后一行" }).boundingBox();
+  if (!box || !last) throw new Error("no box");
+  expect(last.y - box.y).toBeLessThan(box.height / 3);
+});

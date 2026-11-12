@@ -14,6 +14,7 @@ import {
   type DecorationSet,
   EditorView,
   keymap,
+  scrollPastEnd,
   ViewPlugin,
   type ViewUpdate,
   WidgetType,
@@ -425,5 +426,7 @@ export function blockExtensions(): Extension[] {
       ...defaultKeymap,
     ]),
     EditorView.lineWrapping,
+    // 文末下方留出约一屏空白:可以把最后几行滚到上面来写,不必总在窗口底边打字
+    scrollPastEnd(),
   ];
 }
