@@ -112,7 +112,9 @@ export function installMockIpc() {
           { ...t, name, glyph, encrypted: prev?.encrypted ?? false, locked: false },
         ];
         write(db);
-        return null;
+        // 测试可设置 localStorage["baner-mock-save-tab-delay"] 让写 tab 变慢,复现启动时的竞争
+        const delay = Number(localStorage.getItem("baner-mock-save-tab-delay"));
+        return delay ? new Promise((r) => setTimeout(() => r(null), delay)) : null;
       }
       case "delete_tab":
         db.__tabs = (db.__tabs ?? []).filter((x) => x.id !== a.id);
@@ -179,6 +181,10 @@ export function installMockIpc() {
         return config(c);
       }
       case "sync_now": {
+        localStorage.setItem(
+          "baner-mock-sync-skip",
+          JSON.stringify((args as { skip?: string[] }).skip ?? []),
+        );
         // 测试可设置 localStorage["baner-mock-sync-error"] 来模拟失败
         const err = localStorage.getItem("baner-mock-sync-error");
         localStorage.setItem(

@@ -23,12 +23,16 @@ interface Options {
   onTabsChanged: () => Promise<void>;
   /** 每次同步成功后调用:仓库可能带来了 identity.age,或本机钥匙被仓库里的取代,需要重新读取加密状态 */
   onSynced: () => void;
+  /** 这次同步临时跳过的 tab(还没用过的占位 tab) */
+  skipTabs: () => string[];
+  /** tab 列表载入完成(含首次启动建好占位 tab)之后才开始同步 */
+  ready: boolean;
 }
 
 /** 选了仓库、也登录了(或有旧版的 token)才同步 */
 const isConfigured = (s: SyncStatus) => !!s.config.remoteUrl && s.hasToken;
 
-export function useSync({ editor, activeTab, onTabsChanged, onSynced }: Options) {
+export function useSync({ editor, activeTab, onTabsChanged, onSynced, skipTabs, ready }: Options) {
   const [state, setState] = useState<SyncState>({ phase: "off", conflict: false, error: null, status: null });
   const running = useRef(false);
   const again = useRef(false);
@@ -39,6 +43,8 @@ export function useSync({ editor, activeTab, onTabsChanged, onSynced }: Options)
   tabsChanged.current = onTabsChanged;
   const synced = useRef(onSynced);
   synced.current = onSynced;
+  const skip = useRef(skipTabs);
+  skip.current = skipTabs;
   const configured = useRef(false);
 
   const run = useCallback(async () => {
@@ -51,7 +57,8 @@ export function useSync({ editor, activeTab, onTabsChanged, onSynced }: Options)
     setState((s) => ({ ...s, phase: "syncing" }));
     try {
       await editor.current?.flush();
-      const r = await syncNow();
+      // flush 之后再取:刚保存的内容会让占位 tab 变成正式 tab
+      const r = await syncNow(skip.current());
       lastAt.current = Date.now();
       synced.current();
       if (r.changedTabs.length > 0) {
@@ -84,14 +91,15 @@ export function useSync({ editor, activeTab, onTabsChanged, onSynced }: Options)
     return status;
   }, []);
 
-  // 启动时:读取配置,已配置就同步一次
+  // 启动时:等 tab 列表就绪后读取配置,已配置就同步一次
   useEffect(() => {
+    if (!ready) return;
     refreshStatus()
       .then((s) => {
         if (isConfigured(s)) run();
       })
       .catch((e) => console.error("读取同步配置失败", e));
-  }, [refreshStatus, run]);
+  }, [ready, refreshStatus, run]);
 
   // 窗口重新获得焦点、定时拉取
   useEffect(() => {

@@ -156,3 +156,76 @@ test("占位 tab 里写过内容就保留", async ({ page }) => {
   await configureWithIncoming(page);
   await expect(page.locator(".strip .tab .tab-g")).toHaveText(["工", "需"]);
 });
+
+test("新设备首次同步时跳过还没用过的占位 tab;写了内容之后就同步它", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".strip .tab .tab-g")).toHaveText(["工"]);
+  const ph = await page.evaluate(() => localStorage.getItem("baner.placeholderTab"));
+  expect(ph).toBeTruthy();
+  await loginAndPick(page);
+  await expect(page.getByRole("button", { name: /已同步/ })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem("baner-mock-sync-skip"))).toBe(JSON.stringify([ph]));
+
+  await page.getByRole("button", { name: "关闭" }).click();
+  await page.getByTestId("editor").click();
+  await page.keyboard.type("我的第一条");
+  await page.waitForTimeout(450);
+  await page.getByRole("button", { name: /已同步/ }).click();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("baner-mock-sync-skip"))).toBe("[]");
+});
+
+test("新建、改名 tab 后会自动安排同步", async ({ page }) => {
+  await page.clock.install();
+  await page.goto("/");
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "baner-mock-store",
+      JSON.stringify({
+        __sync: {
+          remoteUrl: "https://github.com/octo/notes.git",
+          githubLogin: "octo",
+          unsyncedTabs: [],
+          hasToken: true,
+        },
+      }),
+    ),
+  );
+  await page.reload();
+  await page.clock.runFor(1000);
+  await expect(page.getByRole("button", { name: /已同步/ })).toBeVisible();
+  const count = () => page.evaluate(() => Number(localStorage.getItem("baner-mock-sync-count")));
+  const before = await count();
+
+  await page.getByRole("button", { name: "新 tab" }).click();
+  await page.keyboard.type("想法");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".strip .tab")).toHaveCount(2);
+  await page.clock.runFor(9000);
+  expect(await count()).toBe(before); // 停手 10 秒后才同步
+  await page.clock.runFor(2000);
+  await expect.poll(count).toBe(before + 1);
+});
+
+test("已登录的新设备启动时自动同步:也会跳过刚建好的占位 tab", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.clear();
+    localStorage.setItem("baner-mock-save-tab-delay", "300");
+    localStorage.setItem(
+      "baner-mock-store",
+      JSON.stringify({
+        __sync: {
+          remoteUrl: "https://github.com/octo/notes.git",
+          githubLogin: "octo",
+          unsyncedTabs: [],
+          hasToken: true,
+        },
+      }),
+    );
+  });
+  await page.reload();
+  await expect(page.getByRole("button", { name: /已同步/ })).toBeVisible();
+  const ph = await page.evaluate(() => localStorage.getItem("baner.placeholderTab"));
+  expect(ph).toBeTruthy();
+  expect(await page.evaluate(() => localStorage.getItem("baner-mock-sync-skip"))).toBe(JSON.stringify([ph]));
+});

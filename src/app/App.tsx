@@ -10,7 +10,7 @@ import { isMod, MOD, SHIFT_ALT } from "../rail/keys";
 import { PageHeader } from "../rail/PageHeader";
 import { TabMenu, type TabMenuTarget } from "../rail/TabMenu";
 import { TabStrip } from "../rail/TabStrip";
-import { clearPlaceholder, useTabs } from "../rail/useTabs";
+import { clearPlaceholder, placeholderTab, useTabs } from "../rail/useTabs";
 import { SettingsPanel } from "../settings/SettingsPanel";
 import { SyncButton } from "../sync/SyncButton";
 import { useSync } from "../sync/useSync";
@@ -34,7 +34,8 @@ function writeMdMode(m: MdMode) {
 }
 
 export default function App() {
-  const { tabs, active, select, create, update, remove, move, refresh } = useTabs();
+  const tabsEdited = useRef(() => {});
+  const { tabs, active, select, create, update, remove, move, refresh } = useTabs(() => tabsEdited.current());
   const editorApi = useRef<EditorApi | null>(null);
   const [crypto, setCrypto] = useState<CryptoStatus | null>(null);
   const reloadCrypto = useCallback(() => {
@@ -47,7 +48,13 @@ export default function App() {
     activeTab: active?.id ?? null,
     onTabsChanged: refresh,
     onSynced: reloadCrypto,
+    ready: tabs !== null,
+    skipTabs: () => {
+      const p = placeholderTab();
+      return p ? [p] : [];
+    },
   });
+  tabsEdited.current = sync.onSaved; // 新建、改名、删除、排序后也安排一次同步
   const [settings, setSettings] = useState(false);
   const [epoch, setEpoch] = useState(0); // 加密状态变化后重建编辑器
   useEffect(reloadCrypto, [reloadCrypto]);
@@ -198,7 +205,10 @@ export default function App() {
         contentChanged();
       }}
       onTabsChanged={contentChanged}
-      onSyncChanged={sync.refreshStatus}
+      onSyncChanged={async () => {
+        await sync.refreshStatus();
+        sync.onSaved();
+      }}
       onClose={() => setSettings(false)}
     />
   );
@@ -319,6 +329,7 @@ export default function App() {
           onToggleSync={async () => {
             await setTabSynced(menuTab.id, unsynced.includes(menuTab.id));
             await sync.refreshStatus();
+            sync.onSaved();
           }}
           onToggleEncrypt={async () => {
             try {

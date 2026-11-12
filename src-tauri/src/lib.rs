@@ -265,10 +265,21 @@ fn credentials(state: &AppState) -> CmdResult<Credentials> {
     })
 }
 
+/// `skip`:界面请求这次临时跳过的 tab(还没用过的占位 tab)。只有本机确实没有任何块时才跳过,
+/// 免得新设备首次同步时把空的「工作」tab 推进仓库。
 #[tauri::command]
-async fn sync_now(state: State<'_, AppState>) -> CmdResult<SyncReport> {
+async fn sync_now(state: State<'_, AppState>, skip: Vec<String>) -> CmdResult<SyncReport> {
     let dir = state.data_dir.clone();
-    let cfg = state.config.load()?;
+    let mut cfg = state.config.load()?;
+    {
+        let store = state.store.lock().unwrap();
+        for id in skip {
+            let empty = store.list_blocks(&id).is_ok_and(|b| b.is_empty());
+            if empty && !cfg.unsynced_tabs.contains(&id) {
+                cfg.unsynced_tabs.push(id);
+            }
+        }
+    }
     let creds = credentials(&state)?;
     let lock = state.sync_lock.clone();
     let store = state.store.clone();
