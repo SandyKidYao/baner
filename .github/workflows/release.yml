@@ -1,0 +1,117 @@
+# 推送 v* tag 时:跑全部检查 → 构建 macOS universal 版(Apple 芯片 + Intel)→ 发布 GitHub Release。
+# 发版流程见 scripts/release.sh。构建是 ad-hoc 签名、不公证,和本机 scripts/install-app.sh 一致。
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要发布的已有 tag(例如 v0.1.0)"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: tag 与各处版本号一致
+        run: |
+          want="${TAG#v}"
+          pkg=$(node -p "require('./package.json').version")
+          conf=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          crate=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -1)
+          echo "tag=$want package.json=$pkg tauri.conf.json=$conf Cargo.toml=$crate"
+          [[ "$pkg" == "$want" && "$conf" == "$want" && "$crate" == "$want" ]] \
+            || { echo "::error::版本号与 tag 不一致,用 scripts/release.sh 发版"; exit 1; }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - run: npm ci
+      - run: npx playwright install chromium
+      # Tauri 编译时要求 dist/ 已存在,否则 clippy 和 cargo test 过不了
+      - run: npm run build
+      - run: scripts/check.sh
+
+  build:
+    needs: check
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: universal
+
+      - run: npm ci
+
+      - name: 构建 universal .app 与 .dmg
+        run: npm run tauri build -- --target universal-apple-darwin --bundles app,dmg
+
+      - name: 整理产物
+        run: |
+          bundle=target/universal-apple-darwin/release/bundle
+          codesign --verify --deep --strict "$bundle/macos/Baner.app"
+          lipo -archs "$bundle/macos/Baner.app/Contents/MacOS/baner"
+          mkdir -p out
+          # 文件名不带版本号,产品页用 releases/latest/download/<文件名> 直接下载最新版
+          cp "$bundle"/dmg/*.dmg out/Baner_macOS_universal.dmg
+          ditto -c -k --keepParent "$bundle/macos/Baner.app" out/Baner_macOS_universal.app.zip
+          (cd out && shasum -a 256 * > SHA256SUMS.txt)
+          ls -lh out
+
+      - name: 发布 GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<'EOF'
+          ## 安装(macOS 11+,Apple 芯片与 Intel 通用)
+
+          下载 `.dmg`,把 Baner 拖进「应用程序」。
+
+          这个版本是 ad-hoc 签名、没有经过 Apple 公证,第一次打开会被系统拦下。任选一种放行:
+
+          - 在「系统设置 → 隐私与安全性」里点「仍要打开」;
+          - 或者在终端执行:`xattr -dr com.apple.quarantine /Applications/Baner.app`
+
+          EOF
+          flags=()
+          [[ "$TAG" == *-* ]] && flags+=(--prerelease)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" out/* --clobber
+          else
+            gh release create "$TAG" out/* --title "Baner ${TAG}" \
+              --notes-file notes.md --generate-notes --verify-tag "${flags[@]}"
+          fi
