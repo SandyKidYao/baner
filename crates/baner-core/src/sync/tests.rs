@@ -252,3 +252,114 @@ fn commits_use_the_given_author() {
         "42+octo@users.noreply.github.com"
     );
 }
+
+mod master_key {
+    use super::*;
+    use crate::crypto::{self, FileKey};
+
+    const PASS: &str = "correct horse";
+
+    fn identity(d: &Path) -> Vec<u8> {
+        fs::read(d.join(crypto::IDENTITY_FILE)).unwrap()
+    }
+    fn remote_identity(e: &Env) -> Vec<u8> {
+        let repo = Repository::open_bare(&e.remote).unwrap();
+        let tree = repo
+            .find_reference("refs/heads/main")
+            .unwrap()
+            .peel_to_tree()
+            .unwrap();
+        let id = tree
+            .get_path(Path::new(crypto::IDENTITY_FILE))
+            .unwrap()
+            .id();
+        repo.find_blob(id).unwrap().content().to_vec()
+    }
+    /// 设备 A:设主密钥、建一个加密 tab、同步
+    fn device_a_with_secret(e: &Env) -> FileKey {
+        let key = FileKey::generate();
+        fs::create_dir_all(e.a.join(".baner")).unwrap();
+        fs::write(
+            e.a.join(crypto::IDENTITY_FILE),
+            crypto::wrap(&key, PASS, Some(10)).unwrap(),
+        )
+        .unwrap();
+        let mut s = Store::open(&e.a).unwrap();
+        s.set_key(Some(FileKey::parse(&key.export()).unwrap()));
+        s.save_tab(&TabMeta::new("k1", "秘密", "秘", "a0")).unwrap();
+        s.save_block("k1", &Block::text("b1", "a0", "A 的秘密"))
+            .unwrap();
+        s.set_tab_encrypted("k1", true).unwrap();
+        run(&e.a);
+        key
+    }
+
+    #[test]
+    fn fetch_identity_reads_the_repository_copy() {
+        let e = env();
+        assert_eq!(fetch_identity(&e.b, &NO).unwrap(), None); // 空仓库
+        device_a_with_secret(&e);
+        assert_eq!(fetch_identity(&e.b, &NO).unwrap(), Some(identity(&e.a)));
+        assert!(!e.b.join(crypto::IDENTITY_FILE).exists()); // 只取来,不改工作区
+    }
+
+    /// 复现:新设备第一次同步前就设了主密钥(生成了另一把钥匙)
+    #[test]
+    fn unused_local_key_gives_way_to_the_repository_key() {
+        let e = env();
+        let ka = device_a_with_secret(&e);
+        let before = remote_identity(&e);
+
+        fs::create_dir_all(e.b.join(".baner")).unwrap();
+        fs::write(
+            e.b.join(crypto::IDENTITY_FILE),
+            crypto::wrap(&FileKey::generate(), PASS, Some(10)).unwrap(),
+        )
+        .unwrap();
+        put(&e.b, "t1", "b1", "B 的明文");
+        let r = run(&e.b);
+        assert!(r.key_reset && r.pushed);
+        // 仓库里的钥匙没被覆盖,B 本机换成了仓库里那份,输入主密钥就能拿到 A 的钥匙
+        assert_eq!(remote_identity(&e), before);
+        assert_eq!(identity(&e.b), before);
+        let kb = crypto::unwrap(&identity(&e.b), PASS).unwrap();
+        assert_eq!(kb.export(), ka.export());
+        let mut s = Store::open(&e.b).unwrap();
+        s.set_key(Some(kb));
+        assert_eq!(s.list_blocks("k1").unwrap()[0].text, "A 的秘密");
+    }
+
+    #[test]
+    fn local_key_already_in_use_stops_the_sync_instead_of_overwriting() {
+        let e = env();
+        device_a_with_secret(&e);
+        let before = remote_identity(&e);
+
+        let kb = FileKey::generate();
+        fs::create_dir_all(e.b.join(".baner")).unwrap();
+        fs::write(
+            e.b.join(crypto::IDENTITY_FILE),
+            crypto::wrap(&kb, PASS, Some(10)).unwrap(),
+        )
+        .unwrap();
+        let mut s = Store::open(&e.b).unwrap();
+        s.set_key(Some(kb));
+        s.save_tab(&TabMeta::new("k2", "B 的秘密", "B", "a1"))
+            .unwrap();
+        s.set_tab_encrypted("k2", true).unwrap();
+        assert!(matches!(sync(&e.b, &[], &NO), Err(Error::IdentityConflict)));
+        assert_eq!(remote_identity(&e), before);
+    }
+
+    #[test]
+    fn same_key_on_both_sides_is_not_a_conflict() {
+        let e = env();
+        device_a_with_secret(&e);
+        // B 用 crypto::setup 先取来仓库里的那份(修复后的流程)
+        let remote = fetch_identity(&e.b, &NO).unwrap();
+        crypto::setup(&e.b, PASS, remote).unwrap();
+        put(&e.b, "t1", "b1", "B 的明文");
+        let r = run(&e.b);
+        assert!(!r.key_reset && r.pushed && r.conflicts.is_empty());
+    }
+}

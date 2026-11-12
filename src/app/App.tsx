@@ -36,15 +36,21 @@ function writeMdMode(m: MdMode) {
 export default function App() {
   const { tabs, active, select, create, update, remove, move, refresh } = useTabs();
   const editorApi = useRef<EditorApi | null>(null);
-  const sync = useSync({ editor: editorApi, activeTab: active?.id ?? null, onTabsChanged: refresh });
-  const [settings, setSettings] = useState(false);
   const [crypto, setCrypto] = useState<CryptoStatus | null>(null);
-  const [epoch, setEpoch] = useState(0); // 加密状态变化后重建编辑器
-  useEffect(() => {
+  const reloadCrypto = useCallback(() => {
     cryptoStatus()
       .then(setCrypto)
       .catch((e) => console.error("读取加密状态失败", e));
   }, []);
+  const sync = useSync({
+    editor: editorApi,
+    activeTab: active?.id ?? null,
+    onTabsChanged: refresh,
+    onKeyReset: reloadCrypto,
+  });
+  const [settings, setSettings] = useState(false);
+  const [epoch, setEpoch] = useState(0); // 加密状态变化后重建编辑器
+  useEffect(reloadCrypto, [reloadCrypto]);
   const contentChanged = useCallback(async () => {
     await refresh();
     setEpoch((n) => n + 1);
@@ -186,6 +192,7 @@ export default function App() {
       status={sync.state.status}
       onSaved={sync.onConfigured}
       crypto={crypto}
+      onCryptoStatus={setCrypto}
       onCryptoChanged={(c) => {
         setCrypto(c);
         contentChanged();

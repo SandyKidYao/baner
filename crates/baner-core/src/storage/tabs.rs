@@ -84,8 +84,8 @@ impl Store {
                     encrypted,
                     locked: false,
                 },
-                // 加密且本机没有钥匙:排到最后,用锁作为单字
-                Err(Error::Locked) => TabMeta {
+                // 加密且本机没有钥匙,或钥匙对不上:排到最后,用锁作为单字
+                Err(Error::Locked | Error::KeyMismatch) => TabMeta {
                     id,
                     name: String::new(),
                     glyph: "⚿".into(),

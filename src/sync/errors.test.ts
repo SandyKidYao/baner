@@ -12,6 +12,9 @@ describe("describeSyncError", () => {
       "找不到这个仓库,或它没有授权给 Baner",
     );
     expect(describeSyncError("git: no remote configured")).toBe("还没有选择仓库");
+    expect(
+      describeSyncError("identity conflict: this device's master key differs from the repository's"),
+    ).toBe("这台设备的主密钥和仓库里的不一致");
   });
   it("未知错误原样截断显示", () => {
     expect(describeSyncError("x".repeat(100))).toHaveLength(81);

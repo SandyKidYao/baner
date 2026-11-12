@@ -12,6 +12,8 @@ interface Props {
   onSaved: (s: SyncStatus) => void;
   crypto: CryptoStatus | null;
   onCryptoChanged: (s: CryptoStatus) => void;
+  /** 只更新加密状态(例如输错主密钥后,仓库里的钥匙已取到本机) */
+  onCryptoStatus: (s: CryptoStatus) => void;
   /** tab 的加密状态变了:刷新 tab 列表、重新载入编辑器、安排同步 */
   onTabsChanged: () => void;
   /** 某个 tab 的同步开关变了:重新读取同步状态 */
@@ -26,6 +28,7 @@ export function SettingsPanel({
   onSaved,
   crypto,
   onCryptoChanged,
+  onCryptoStatus,
   onTabsChanged,
   onSyncChanged,
   onClose,
@@ -65,7 +68,7 @@ export function SettingsPanel({
       <h3 className="sub">
         <LockIcon /> 主密钥
       </h3>
-      <MasterKey status={crypto} onChanged={onCryptoChanged} />
+      <MasterKey status={crypto} onChanged={onCryptoChanged} onStatus={onCryptoStatus} />
 
       <h3 className="sub">
         按 tab <span className="muted">· 同步 · 加密</span>

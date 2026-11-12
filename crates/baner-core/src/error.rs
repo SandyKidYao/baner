@@ -22,6 +22,12 @@ pub enum Error {
     /// 加密内容,但本机还没有配置主密钥
     #[error("locked: master key not configured on this device")]
     Locked,
+    /// 加密内容用的是另一把文件钥匙(本机的主密钥和仓库里的不一致)
+    #[error("locked: key mismatch")]
+    KeyMismatch,
+    /// 同步时两边的 identity.age 不同,而本机已经用自己的钥匙加密过内容:不能自动处理
+    #[error("identity conflict: this device's master key differs from the repository's")]
+    IdentityConflict,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

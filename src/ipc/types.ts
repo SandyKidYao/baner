@@ -48,6 +48,8 @@ export interface SyncReport {
   changedTabs: string[];
   conflicts: string[];
   pushed: boolean;
+  /** 本机没用过的钥匙被仓库里的主密钥取代:需要重新输入主密钥 */
+  keyReset: boolean;
 }
 
 /** GitHub 登录的验证码。秒为单位 */

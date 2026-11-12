@@ -2,7 +2,7 @@ import { Annotation, Compartment, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { type MutableRefObject, useEffect, useRef, useState } from "react";
 import { DrawHost } from "../draw/draw-host";
-import { type Block, deleteBlock, isLocked, loadBlocks, saveBlock, saveDrawing } from "../ipc";
+import { type Block, deleteBlock, isKeyMismatch, isLocked, loadBlocks, saveBlock, saveDrawing } from "../ipc";
 import { GearIcon, LockIcon } from "../rail/icons";
 import { debounce } from "./debounce";
 import { blockExtensions, drawHooks, insertBlockAfter, insertDrawing } from "./editor";
@@ -42,7 +42,8 @@ export function TabEditor({ tab, mdMode, onReady, autoFocus = true, onSaved, api
   const viewRef = useRef<EditorView | null>(null);
   const mode = useRef(mdMode);
   mode.current = mdMode;
-  const [locked, setLocked] = useState(false);
+  /** 锁定原因:本机没有主密钥 / 钥匙和这个 tab 对不上 */
+  const [locked, setLocked] = useState<false | "nokey" | "mismatch">(false);
   const host = useRef<HTMLDivElement>(null);
   const ready = useRef(onReady);
   ready.current = onReady;
@@ -122,7 +123,7 @@ export function TabEditor({ tab, mdMode, onReady, autoFocus = true, onSaved, api
         if (focus.current) view.focus();
       })
       .catch((e) => {
-        if (isLocked(e)) setLocked(true);
+        if (isLocked(e)) setLocked(isKeyMismatch(e) ? "mismatch" : "nokey");
         else console.error("载入失败", e);
       })
       .finally(() => ready.current?.());
@@ -194,11 +195,13 @@ export function TabEditor({ tab, mdMode, onReady, autoFocus = true, onSaved, api
         <span className="big">
           <LockIcon />
         </span>
-        <p>本机未配置主密钥</p>
+        <p>{locked === "mismatch" ? "这个 tab 用的是另一把主密钥" : "本机未配置主密钥"}</p>
         <button type="button" className="sym" onClick={onOpenSettings} aria-label="去配置主密钥">
           <GearIcon /> →
         </button>
-        <p className="muted">配置一次后,进出加密 tab 不再提示</p>
+        <p className="muted">
+          {locked === "mismatch" ? "本机的主密钥和仓库里的不一致" : "配置一次后,进出加密 tab 不再提示"}
+        </p>
       </div>
     );
   }

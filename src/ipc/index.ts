@@ -55,4 +55,6 @@ export const cryptoStatus = () => invoke<CryptoStatus>("crypto_status");
 export const cryptoSetup = (passphrase: string) => invoke<CryptoStatus>("crypto_setup", { passphrase });
 export const setTabEncrypted = (id: string, on: boolean) => invoke<void>("set_tab_encrypted", { id, on });
 export const isLocked = (e: unknown) => /^locked/.test(String(e));
+/** 内容是用另一把钥匙加密的(本机的主密钥和仓库里的不一致) */
+export const isKeyMismatch = (e: unknown) => /^locked: key mismatch/.test(String(e));
 export const appReady = () => invoke<void>("app_ready");

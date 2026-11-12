@@ -19,8 +19,16 @@ const config = (c: MockSync) => ({
 type Db = Record<string, Block[]> & {
   __tabs?: TabMeta[];
   __sync?: MockSync;
-  /** 模拟:本机是否有文件钥匙;仓库里是否已有 identity.age;主密钥 */
-  __crypto?: { configured: boolean; repoHasIdentity: boolean; pass?: string };
+  /** 模拟:本机是否有文件钥匙;本机是否已有 identity.age;主密钥;
+   *  remotePass:远端仓库里已有主密钥、但还没同步到本机 */
+  __crypto?: {
+    configured: boolean;
+    repoHasIdentity: boolean;
+    pass?: string;
+    remotePass?: string;
+    /** 这些 tab 是用另一把钥匙加密的 */
+    mismatch?: string[];
+  };
   /** 图块内容,键为 "<tab>/<块id>" */
   __drawings?: Record<string, Drawing>;
 };
@@ -50,6 +58,7 @@ export function installMockIpc() {
         const t = (db.__tabs ?? []).find((x) => x.id === a.tab);
         if (t?.encrypted && !db.__crypto?.configured)
           throw "locked: master key not configured on this device";
+        if (t && db.__crypto?.mismatch?.includes(t.id)) throw "locked: key mismatch";
         return [...(db[a.tab ?? ""] ?? [])].sort((x, y) => x.key.localeCompare(y.key));
       }
       case "save_block": {
@@ -179,6 +188,14 @@ export function installMockIpc() {
         // 测试可设置 localStorage["baner-mock-sync-incoming"] = {tabs, blocks} 模拟远端带来的内容
         const incoming = localStorage.getItem("baner-mock-sync-incoming");
         let changedTabs: string[] = [];
+        // 测试可设置 localStorage["baner-mock-sync-keyreset"] 模拟本机钥匙被仓库里的主密钥取代
+        const keyReset = !err && !!localStorage.getItem("baner-mock-sync-keyreset");
+        if (keyReset) {
+          localStorage.removeItem("baner-mock-sync-keyreset");
+          const cur = read();
+          cur.__crypto = { configured: false, repoHasIdentity: true, pass: cur.__crypto?.remotePass };
+          write(cur);
+        }
         if (!err && incoming) {
           const x = JSON.parse(incoming) as { tabs: TabMeta[]; blocks: Record<string, Block[]> };
           const cur = read();
@@ -191,7 +208,9 @@ export function installMockIpc() {
         return new Promise((resolve, reject) =>
           setTimeout(
             () =>
-              err ? reject(err) : resolve({ committed: true, changedTabs, conflicts: [], pushed: true }),
+              err
+                ? reject(err)
+                : resolve({ committed: true, changedTabs, conflicts: [], pushed: true, keyReset }),
             150,
           ),
         );
@@ -205,6 +224,13 @@ export function installMockIpc() {
         const pass = (args as { passphrase: string }).passphrase;
         if ([...pass].length < 8) throw "crypto: master key too short";
         const c = db.__crypto ?? { configured: false, repoHasIdentity: false };
+        if (!c.repoHasIdentity && c.remotePass) {
+          // 先从仓库取来 identity.age,即使主密钥输错也留在本机
+          c.repoHasIdentity = true;
+          c.pass = c.remotePass;
+          db.__crypto = c;
+          write(db);
+        }
         if (c.repoHasIdentity && c.pass && c.pass !== pass) throw "wrong master key";
         db.__crypto = { configured: true, repoHasIdentity: true, pass: c.pass ?? pass };
         write(db);

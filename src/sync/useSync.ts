@@ -21,12 +21,14 @@ interface Options {
   editor: MutableRefObject<EditorApi | null>;
   activeTab: string | null;
   onTabsChanged: () => Promise<void>;
+  /** 本机的钥匙被仓库里的主密钥取代,需要重新读取加密状态 */
+  onKeyReset: () => void;
 }
 
 /** 选了仓库、也登录了(或有旧版的 token)才同步 */
 const isConfigured = (s: SyncStatus) => !!s.config.remoteUrl && s.hasToken;
 
-export function useSync({ editor, activeTab, onTabsChanged }: Options) {
+export function useSync({ editor, activeTab, onTabsChanged, onKeyReset }: Options) {
   const [state, setState] = useState<SyncState>({ phase: "off", conflict: false, error: null, status: null });
   const running = useRef(false);
   const again = useRef(false);
@@ -35,6 +37,8 @@ export function useSync({ editor, activeTab, onTabsChanged }: Options) {
   active.current = activeTab;
   const tabsChanged = useRef(onTabsChanged);
   tabsChanged.current = onTabsChanged;
+  const keyReset = useRef(onKeyReset);
+  keyReset.current = onKeyReset;
   const configured = useRef(false);
 
   const run = useCallback(async () => {
@@ -49,6 +53,7 @@ export function useSync({ editor, activeTab, onTabsChanged }: Options) {
       await editor.current?.flush();
       const r = await syncNow();
       lastAt.current = Date.now();
+      if (r.keyReset) keyReset.current();
       if (r.changedTabs.length > 0) {
         await tabsChanged.current();
         if (active.current && r.changedTabs.includes(active.current)) {

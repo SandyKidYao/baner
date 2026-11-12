@@ -4,8 +4,10 @@
 //! - `.md` 文本块:三方合并;同一行冲突时,把冲突标记写进文件。
 //! - 其他文件(tab.json、.age 密文、图块 JSON 等):无法按行合并,保留提交时间较新的一边。
 //! - 一边修改、一边删除:保留修改的一边,不丢内容。
+//! - `.baner/identity.age`(包裹文件钥匙)两边不同:本机没用自己的钥匙加密过内容时改用仓库里的,
+//!   并通知调用方清掉本机钥匙;否则停止同步,绝不覆盖仓库里的钥匙。
 
-use crate::{Error, Result};
+use crate::{Error, Result, crypto};
 use git2::{
     Commit, Cred, FetchOptions, Index, IndexEntry, MergeOptions, Oid, PushOptions, RemoteCallbacks,
     Repository, Signature, Tree, build::CheckoutBuilder,
@@ -42,6 +44,8 @@ pub struct SyncReport {
     /// 写入了冲突标记的文本块路径(相对数据目录)
     pub conflicts: Vec<String>,
     pub pushed: bool,
+    /// 本机的 identity.age 被仓库里的取代:调用方要清掉本机的文件钥匙,让用户重新输入主密钥
+    pub key_reset: bool,
 }
 
 /// 访问远端的身份。
@@ -92,6 +96,52 @@ pub fn configure(dir: &Path, url: &str) -> Result<()> {
         repo.remote(REMOTE, url)?;
     }
     Ok(())
+}
+
+/// 从远端取来仓库里的 identity.age(没有就返回 None)。只 fetch,不改工作区和本地分支。
+pub fn fetch_identity(dir: &Path, creds: &Credentials) -> Result<Option<Vec<u8>>> {
+    let repo = open_or_init(dir)?;
+    if repo.find_remote(REMOTE).is_err() {
+        return Ok(None);
+    }
+    let Some(id) = fetch(&repo, creds)? else {
+        return Ok(None);
+    };
+    let tree = repo.find_commit(id)?.tree()?;
+    match tree.get_path(Path::new(crypto::IDENTITY_FILE)) {
+        Ok(e) => Ok(Some(repo.find_blob(e.id())?.content().to_vec())),
+        Err(_) => Ok(None),
+    }
+}
+
+fn identity_id(tree: &Tree) -> Option<Oid> {
+    tree.get_path(Path::new(crypto::IDENTITY_FILE))
+        .ok()
+        .map(|e| e.id())
+}
+
+/// 两边的 identity.age 都在且不同时:本机树里没有任何密文就可以改用仓库里的(返回 true),
+/// 否则返回 `IdentityConflict`。
+fn check_identity(ours: &Tree, theirs: &Tree) -> Result<bool> {
+    match (identity_id(ours), identity_id(theirs)) {
+        (Some(o), Some(t)) if o != t => {
+            let mut has_cipher = false;
+            // 找到一个就中止遍历;中止时 walk 返回错误,忽略即可
+            let _ = ours.walk(git2::TreeWalkMode::PreOrder, |root, e| {
+                if root.starts_with("tabs/") && e.name().is_ok_and(|n| n.ends_with(".age")) {
+                    has_cipher = true;
+                    return git2::TreeWalkResult::Abort;
+                }
+                git2::TreeWalkResult::Ok
+            });
+            if has_cipher {
+                Err(Error::IdentityConflict)
+            } else {
+                Ok(true)
+            }
+        }
+        _ => Ok(false),
+    }
 }
 
 /// 把不同步的 tab 写进 .git/info/exclude(只对本机生效),并把它们移出索引。
@@ -257,6 +307,8 @@ fn resolve_conflicts(
             .map(entry_path)
             .unwrap_or_default();
         let resolved: Option<IndexEntry> = match (c.our, c.their) {
+            // 走到这里时 check_identity 已确认可以改用仓库里的钥匙
+            (Some(_), Some(t)) if path == crypto::IDENTITY_FILE => Some(t),
             (Some(o), Some(t)) if path.ends_with(".md") => {
                 let content = match &c.ancestor {
                     Some(a) => {
@@ -366,6 +418,9 @@ pub fn sync(dir: &Path, unsynced: &[String], creds: &Credentials) -> Result<Sync
                 report.changed_tabs = changed.into_iter().collect();
                 return Ok(report);
             } else {
+                if check_identity(&ours.tree()?, &theirs.tree()?)? {
+                    report.key_reset = true;
+                }
                 let mut opts = MergeOptions::new();
                 opts.fail_on_conflict(false);
                 let mut index = match base {

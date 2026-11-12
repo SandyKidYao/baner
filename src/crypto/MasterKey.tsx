@@ -1,15 +1,17 @@
 import { useState } from "react";
-import { type CryptoStatus, cryptoSetup } from "../ipc";
+import { type CryptoStatus, cryptoSetup, cryptoStatus } from "../ipc";
 import { CheckIcon, LockIcon } from "../rail/icons";
 import { describeCryptoError } from "./errors";
 
 interface Props {
   status: CryptoStatus | null;
   onChanged: (s: CryptoStatus) => void;
+  /** 失败后重新读取的状态 */
+  onStatus: (s: CryptoStatus) => void;
 }
 
 /** 主密钥:首次设置(输两遍)/ 另一台设备已设置过时输入解锁 / 已配置。 */
-export function MasterKey({ status, onChanged }: Props) {
+export function MasterKey({ status, onChanged, onStatus }: Props) {
   const [pass, setPass] = useState("");
   const [again, setAgain] = useState("");
   const [busy, setBusy] = useState(false);
@@ -35,7 +37,15 @@ export function MasterKey({ status, onChanged }: Props) {
       setPass("");
       setAgain("");
     } catch (e) {
-      setErr(describeCryptoError(e));
+      // 本以为是新设置,其实仓库里已有主密钥:核心层已把它取到本机,界面切换成「输入」
+      setErr(
+        !unlock && /wrong master key/.test(String(e))
+          ? "仓库里已有主密钥,请输入另一台设备上设置的那个"
+          : describeCryptoError(e),
+      );
+      cryptoStatus()
+        .then(onStatus)
+        .catch(() => {});
     } finally {
       setBusy(false);
     }

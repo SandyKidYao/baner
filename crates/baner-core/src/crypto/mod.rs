@@ -6,8 +6,10 @@
 
 use crate::{Error, Result};
 use age::secrecy::{ExposeSecret, SecretString};
+use std::fs;
 use std::io::{Read, Write};
 use std::iter;
+use std::path::Path;
 
 pub const IDENTITY_FILE: &str = ".baner/identity.age";
 
@@ -34,8 +36,12 @@ impl FileKey {
         age::encrypt(&self.0.to_public(), plain).map_err(|e| Error::Crypto(e.to_string()))
     }
 
+    /// 解密。密文不是用这把钥匙加密的时返回 `Error::KeyMismatch`。
     pub fn decrypt(&self, cipher: &[u8]) -> Result<Vec<u8>> {
-        age::decrypt(&self.0, cipher).map_err(|e| Error::Crypto(e.to_string()))
+        age::decrypt(&self.0, cipher).map_err(|e| match e {
+            age::DecryptError::NoMatchingKeys => Error::KeyMismatch,
+            other => Error::Crypto(other.to_string()),
+        })
     }
 }
 
@@ -74,9 +80,95 @@ pub fn unwrap(data: &[u8], passphrase: &str) -> Result<FileKey> {
     FileKey::parse(&s)
 }
 
+/// 设置或输入主密钥,得到文件钥匙。
+///
+/// 顺序:本机已有 identity.age 就用它;否则仓库里有(`remote`,调用方先从远端取来)就存到本机再用它;
+/// 都没有才生成新的文件钥匙。这样新设备在第一次同步前输入主密钥,也不会生成另一把钥匙。
+/// 仓库里的 identity.age 即使主密钥输错也会存到本机(同步本来就会带来它),界面据此切换到「输入」模式。
+pub fn setup(dir: &Path, passphrase: &str, remote: Option<Vec<u8>>) -> Result<FileKey> {
+    setup_with(dir, passphrase, remote, None)
+}
+
+fn setup_with(
+    dir: &Path,
+    passphrase: &str,
+    remote: Option<Vec<u8>>,
+    log_n: Option<u8>,
+) -> Result<FileKey> {
+    let path = dir.join(IDENTITY_FILE);
+    let data = match fs::read(&path) {
+        Ok(d) => d,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            if let Some(p) = path.parent() {
+                fs::create_dir_all(p)?;
+            }
+            match remote {
+                Some(d) => {
+                    fs::write(&path, &d)?;
+                    d
+                }
+                None => {
+                    let key = FileKey::generate();
+                    fs::write(&path, wrap(&key, passphrase, log_n)?)?;
+                    return Ok(key);
+                }
+            }
+        }
+        Err(e) => return Err(e.into()),
+    };
+    unwrap(&data, passphrase)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const PASS: &str = "correct horse";
+
+    #[test]
+    fn setup_generates_a_key_when_nobody_has_one() {
+        let d = tempfile::tempdir().unwrap();
+        let k = setup_with(d.path(), PASS, None, Some(10)).unwrap();
+        let saved = fs::read(d.path().join(IDENTITY_FILE)).unwrap();
+        assert_eq!(unwrap(&saved, PASS).unwrap().export(), k.export());
+        // 再次输入:用本机已有的,不再生成
+        assert_eq!(setup(d.path(), PASS, None).unwrap().export(), k.export());
+        assert!(matches!(
+            setup(d.path(), "wrong horse!", None),
+            Err(Error::WrongMasterKey)
+        ));
+    }
+
+    #[test]
+    fn setup_uses_the_repository_key_instead_of_generating_one() {
+        let d = tempfile::tempdir().unwrap();
+        let theirs = FileKey::generate();
+        let remote = wrap(&theirs, PASS, Some(10)).unwrap();
+        let k = setup(d.path(), PASS, Some(remote.clone())).unwrap();
+        assert_eq!(k.export(), theirs.export());
+        // 本机存的是仓库里那份的原样副本,同步时两边一致
+        assert_eq!(fs::read(d.path().join(IDENTITY_FILE)).unwrap(), remote);
+    }
+
+    #[test]
+    fn setup_with_wrong_key_still_keeps_the_repository_identity() {
+        let d = tempfile::tempdir().unwrap();
+        let remote = wrap(&FileKey::generate(), PASS, Some(10)).unwrap();
+        assert!(matches!(
+            setup(d.path(), "wrong horse!", Some(remote.clone())),
+            Err(Error::WrongMasterKey)
+        ));
+        assert_eq!(fs::read(d.path().join(IDENTITY_FILE)).unwrap(), remote);
+    }
+
+    #[test]
+    fn decrypt_with_another_key_is_a_key_mismatch() {
+        let c = FileKey::generate().encrypt(b"x").unwrap();
+        assert!(matches!(
+            FileKey::generate().decrypt(&c),
+            Err(Error::KeyMismatch)
+        ));
+    }
 
     #[test]
     fn encrypt_decrypt_roundtrip_and_ciphertext_hides_plaintext() {

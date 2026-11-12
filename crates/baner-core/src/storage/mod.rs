@@ -465,6 +465,24 @@ mod tests {
     }
 
     #[test]
+    fn tab_encrypted_with_another_key_is_locked_not_an_error() {
+        let d = tempfile::tempdir().unwrap();
+        let s = keyed(d.path());
+        s.save_tab(&TabMeta::new("t1", "密钥", "钥", "a0")).unwrap();
+        s.save_block("t1", &b("b1", "a0", "x")).unwrap();
+        s.set_tab_encrypted("t1", true).unwrap();
+        s.save_tab(&TabMeta::new("t2", "明文", "明", "a1")).unwrap();
+        let mut other = Store::open(d.path()).unwrap();
+        other.set_key(Some(FileKey::generate()));
+        // 整个列表照常读出,只有那个 tab 显示为锁定
+        let tabs = other.list_tabs().unwrap();
+        assert_eq!(tabs.len(), 2);
+        let t = tabs.iter().find(|t| t.id == "t1").unwrap();
+        assert!(t.encrypted && t.locked && t.name.is_empty());
+        assert!(matches!(other.list_blocks("t1"), Err(Error::KeyMismatch)));
+    }
+
+    #[test]
     fn encrypted_tab_is_locked_without_key() {
         let d = tempfile::tempdir().unwrap();
         let s = keyed(d.path());

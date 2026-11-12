@@ -244,31 +244,43 @@ fn set_tab_synced(state: State<AppState>, id: String, synced: bool) -> CmdResult
     Ok(c)
 }
 
-#[tauri::command]
-async fn sync_now(state: State<'_, AppState>) -> CmdResult<SyncReport> {
-    let dir = state.data_dir.clone();
+/// 访问远端的身份:GitHub 登录得到的 token,提交作者用 GitHub 账号。
+fn credentials(state: &AppState) -> CmdResult<Credentials> {
     let cfg = state.config.load()?;
-    let author = match (&cfg.github_login, cfg.github_id) {
-        (Some(login), Some(id)) => Some(Author {
-            name: login.clone(),
-            email: github::User {
+    let author = match (cfg.github_login, cfg.github_id) {
+        (Some(login), Some(id)) => {
+            let email = github::User {
                 login: login.clone(),
                 id,
             }
-            .noreply_email(),
-        }),
+            .noreply_email();
+            Some(Author { name: login, email })
+        }
         _ => None,
     };
-    let creds = Credentials {
+    Ok(Credentials {
         username: Some("x-access-token".into()),
         token: state.secrets.get(TOKEN)?,
         author,
-    };
+    })
+}
+
+#[tauri::command]
+async fn sync_now(state: State<'_, AppState>) -> CmdResult<SyncReport> {
+    let dir = state.data_dir.clone();
+    let unsynced = state.config.load()?.unsynced_tabs;
+    let creds = credentials(&state)?;
     let lock = state.sync_lock.clone();
     let store = state.store.clone();
+    let secrets = state.secrets.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = lock.lock().unwrap();
-        let mut report = sync::sync(&dir, &cfg.unsynced_tabs, &creds)?;
+        let mut report = sync::sync(&dir, &unsynced, &creds)?;
+        if report.key_reset {
+            // 本机的钥匙没用过,已换成仓库里的 identity.age:清掉旧钥匙,让用户输入主密钥
+            secrets.delete(FILE_KEY)?;
+            store.lock().unwrap().set_key(None);
+        }
         // 合并可能把明文文件带进加密 tab(另一台设备开启加密前的修改),立即加密掉
         let fixed = store.lock().unwrap().enforce_encryption()?;
         if !fixed.is_empty() {
@@ -290,23 +302,25 @@ fn crypto_status(state: State<AppState>) -> CmdResult<CryptoStatus> {
     })
 }
 
-/// 设置或输入主密钥:仓库里已有 identity.age 就用主密钥解开它;否则生成新的文件钥匙并用主密钥包裹。
+/// 设置或输入主密钥。已选仓库而本机还没有 identity.age 时,先从仓库取来,
+/// 避免新设备在第一次同步前生成另一把钥匙(见 crypto::setup)。
 #[tauri::command]
 async fn crypto_setup(state: State<'_, AppState>, passphrase: String) -> CmdResult<CryptoStatus> {
-    let path = state.data_dir.join(crypto::IDENTITY_FILE);
-    // scrypt 约 1 秒,放到后台线程
-    let key = tauri::async_runtime::spawn_blocking(move || -> baner_core::Result<FileKey> {
-        match std::fs::read(&path) {
-            Ok(data) => crypto::unwrap(&data, &passphrase),
-            Err(_) => {
-                let key = FileKey::generate();
-                std::fs::write(&path, crypto::wrap(&key, &passphrase, None)?)?;
-                Ok(key)
-            }
-        }
+    let dir = state.data_dir.clone();
+    let has_remote = state.config.load()?.remote_url.is_some();
+    let creds = credentials(&state)?;
+    let lock = state.sync_lock.clone();
+    // 网络请求和 scrypt(约 1 秒)都放到后台线程
+    let key = blocking(move || {
+        let _guard = lock.lock().unwrap();
+        let remote = if has_remote && !dir.join(crypto::IDENTITY_FILE).exists() {
+            sync::fetch_identity(&dir, &creds)?
+        } else {
+            None
+        };
+        crypto::setup(&dir, &passphrase, remote)
     })
-    .await
-    .map_err(|e| baner_core::Error::Crypto(e.to_string()))??;
+    .await?;
     state.secrets.set(FILE_KEY, &key.export())?;
     state.store.lock().unwrap().set_key(Some(key));
     crypto_status(state)

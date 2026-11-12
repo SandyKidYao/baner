@@ -1,6 +1,7 @@
 /** 把 git 错误翻译成一行可行动的说明。原始信息不含 token。 */
 export function describeSyncError(e: unknown): string {
   const raw = String(e instanceof Error ? e.message : e);
+  if (/identity conflict/.test(raw)) return "这台设备的主密钥和仓库里的不一致";
   if (/401|403|auth|credential|permission|unauthorized/i.test(raw)) return "GitHub 授权失效,请重新登录";
   if (/404|not found|does not appear to be a git repository/i.test(raw))
     return "找不到这个仓库,或它没有授权给 Baner";
