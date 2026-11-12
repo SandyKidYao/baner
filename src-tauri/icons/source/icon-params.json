@@ -1,4 +1,4 @@
 {
-  "note": "由 .xiaobai/project-init/design/2026-11-12-icon-ban.html 的预设 1 导出;字体 Ma Shan Zheng(马善政毛笔楷,SIL OFL 1.1)。重新生成:npx tauri icon src-tauri/icons/source/icon-1024.png",
+  "note": "手写「板」字图标;字体 Ma Shan Zheng(马善政毛笔楷,SIL OFL 1.1)。重新生成:npx tauri icon src-tauri/icons/source/icon-1024.png",
   "params": {"src":"font","scale":0.8,"weight":0,"rot":0,"dx":0,"dy":0.01,"radius":0.225,"accent":"none","accentColor":"#f2b544","mac":true,"font":"Ma Shan Zheng","glyph":"#f2b544","bg":"#2c3052","bg2":"#1f2238"}
 }

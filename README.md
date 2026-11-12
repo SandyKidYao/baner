@@ -42,6 +42,13 @@ scripts/check.sh --fast        # 只做格式、lint、类型(提交前钩子用
 | `tests/e2e/` | 浏览器内的界面冒烟测试(核心层命令被模拟) |
 | `scripts/` | 检查、安装、性能测量脚本 |
 
+## 文档
+
+- [架构](docs/tech/architecture.md)与[架构决策记录](docs/tech/adr/README.md)
+- [体验设计规范](docs/design/design.md)
+- [工程约定](docs/dev/conventions.md)
+- 给 AI 协作者的说明:[AGENTS.md](AGENTS.md)
+
 ## 许可证
 
-MIT
+[MIT](LICENSE)

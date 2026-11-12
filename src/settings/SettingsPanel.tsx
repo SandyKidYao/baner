@@ -33,7 +33,7 @@ const Mark = ({ ok, label }: { ok: boolean; label: string }) => (
   </span>
 );
 
-/** 同步与加密配置:检测结果 → 仓库与 token → 每个 tab 的开关。加密在 backlog 第 4 项加入。 */
+/** 同步与加密配置:检测结果 → 仓库与 token → 每个 tab 的开关 → 本机主密钥。 */
 export function SettingsPanel({
   tabs,
   status,
