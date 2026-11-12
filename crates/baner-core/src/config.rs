@@ -1,4 +1,4 @@
-//! 本机配置(不进仓库):远端地址、用户名、不同步的 tab。token 在 secrets 里。
+//! 本机配置(不进仓库):远端地址、登录的 GitHub 账号、不同步的 tab。token 在 secrets 里。
 
 use crate::Result;
 use serde::{Deserialize, Serialize};
@@ -9,8 +9,9 @@ use std::path::{Path, PathBuf};
 #[serde(default, rename_all = "camelCase")]
 pub struct SyncConfig {
     pub remote_url: Option<String>,
-    /// HTTPS 用户名;GitHub 可以留空(用 token 即可)
-    pub username: Option<String>,
+    /// 登录的 GitHub 账号;为空表示没有用 GitHub 登录(可能是旧版手动填的 token)
+    pub github_login: Option<String>,
+    pub github_id: Option<u64>,
     /// 本机不同步的 tab id
     pub unsynced_tabs: Vec<String>,
 }

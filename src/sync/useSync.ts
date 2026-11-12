@@ -23,6 +23,9 @@ interface Options {
   onTabsChanged: () => Promise<void>;
 }
 
+/** 选了仓库、也登录了(或有旧版的 token)才同步 */
+const isConfigured = (s: SyncStatus) => !!s.config.remoteUrl && s.hasToken;
+
 export function useSync({ editor, activeTab, onTabsChanged }: Options) {
   const [state, setState] = useState<SyncState>({ phase: "off", conflict: false, error: null, status: null });
   const running = useRef(false);
@@ -67,7 +70,7 @@ export function useSync({ editor, activeTab, onTabsChanged }: Options) {
 
   const refreshStatus = useCallback(async () => {
     const status = await syncStatus();
-    configured.current = !!status.config.remoteUrl;
+    configured.current = isConfigured(status);
     setState((s) => ({
       ...s,
       status,
@@ -80,7 +83,7 @@ export function useSync({ editor, activeTab, onTabsChanged }: Options) {
   useEffect(() => {
     refreshStatus()
       .then((s) => {
-        if (s.config.remoteUrl) run();
+        if (isConfigured(s)) run();
       })
       .catch((e) => console.error("读取同步配置失败", e));
   }, [refreshStatus, run]);
@@ -102,11 +105,11 @@ export function useSync({ editor, activeTab, onTabsChanged }: Options) {
   }, [run]);
   const onSaved = useCallback(() => afterEdit.current(), []);
 
-  /** 配置保存后调用:立即采用新状态并同步一次 */
+  /** 登录、换仓库、退出登录后调用:立即采用新状态,已配置就同步一次 */
   const onConfigured = useCallback(
     (status: SyncStatus) => {
-      configured.current = !!status.config.remoteUrl;
-      setState((s) => ({ ...s, status, phase: configured.current ? "idle" : "off" }));
+      configured.current = isConfigured(status);
+      setState((s) => ({ ...s, status, phase: configured.current ? "idle" : "off", error: null }));
       run();
     },
     [run],

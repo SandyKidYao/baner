@@ -44,9 +44,18 @@ pub struct SyncReport {
     pub pushed: bool,
 }
 
+/// 访问远端的身份。
 pub struct Credentials {
     pub username: Option<String>,
     pub token: Option<String>,
+    /// 提交作者;为空时用「Baner」
+    pub author: Option<Author>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Author {
+    pub name: String,
+    pub email: String,
 }
 
 pub fn detect(dir: &Path) -> Detect {
@@ -103,8 +112,11 @@ fn apply_exclusions(repo: &Repository, unsynced: &[String]) -> Result<()> {
     Ok(())
 }
 
-fn signature() -> Result<Signature<'static>> {
-    Ok(Signature::now("Baner", "baner@localhost")?)
+fn signature(author: Option<&Author>) -> Result<Signature<'static>> {
+    Ok(match author {
+        Some(a) => Signature::now(&a.name, &a.email)?,
+        None => Signature::now("Baner", "baner@localhost")?,
+    })
 }
 
 fn branch_ref() -> String {
@@ -112,7 +124,7 @@ fn branch_ref() -> String {
 }
 
 /// 暂存所有改动(含删除),有变化就提交。返回是否产生了提交。
-fn commit_local(repo: &Repository) -> Result<bool> {
+fn commit_local(repo: &Repository, author: Option<&Author>) -> Result<bool> {
     let mut index = repo.index()?;
     index.add_all(["."], git2::IndexAddOption::DEFAULT, None)?;
     index.update_all(["."], None)?;
@@ -126,7 +138,7 @@ fn commit_local(repo: &Repository) -> Result<bool> {
         return Ok(false);
     }
     let tree = repo.find_tree(tree_id)?;
-    let sig = signature()?;
+    let sig = signature(author)?;
     let parents: Vec<&Commit> = parent.iter().collect();
     repo.commit(
         Some(&branch_ref()),
@@ -332,7 +344,7 @@ pub fn sync(dir: &Path, unsynced: &[String], creds: &Credentials) -> Result<Sync
     }
     apply_exclusions(&repo, unsynced)?;
     let mut report = SyncReport {
-        committed: commit_local(&repo)?,
+        committed: commit_local(&repo, creds.author.as_ref())?,
         ..Default::default()
     };
     let mut changed = BTreeSet::new();
@@ -371,7 +383,7 @@ pub fn sync(dir: &Path, unsynced: &[String], creds: &Credentials) -> Result<Sync
                         .extend(resolve_conflicts(&repo, &mut index, ours_newer)?);
                 }
                 let tree = repo.find_tree(index.write_tree_to(&repo)?)?;
-                let sig = signature()?;
+                let sig = signature(creds.author.as_ref())?;
                 repo.commit(
                     Some(&branch_ref()),
                     &sig,

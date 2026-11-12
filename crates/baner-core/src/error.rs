@@ -12,6 +12,9 @@ pub enum Error {
     Secret(String),
     #[error("git: {0}")]
     Git(String),
+    /// GitHub 登录与接口;内容不含 token
+    #[error("github: {0}")]
+    Github(String),
     #[error("crypto: {0}")]
     Crypto(String),
     #[error("wrong master key")]

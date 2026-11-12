@@ -28,6 +28,7 @@ fn env() -> Env {
 const NO: Credentials = Credentials {
     username: None,
     token: None,
+    author: None,
 };
 
 fn run(d: &Path) -> SyncReport {
@@ -224,4 +225,30 @@ fn encrypted_tab_syncs_as_ciphertext_and_conflicts_keep_a_valid_version() {
     assert!(r.conflicts.is_empty());
     let text = &b.list_blocks("k1").unwrap()[0].text;
     assert!(text == "TOKEN=from-a" || text == "TOKEN=from-b", "{text}");
+}
+
+#[test]
+fn commits_use_the_given_author() {
+    let e = env();
+    put(&e.a, "t1", "b1", "hi");
+    let creds = Credentials {
+        username: None,
+        token: None,
+        author: Some(Author {
+            name: "octo".into(),
+            email: "42+octo@users.noreply.github.com".into(),
+        }),
+    };
+    sync(&e.a, &[], &creds).unwrap();
+    let repo = Repository::open_bare(&e.remote).unwrap();
+    let c = repo
+        .find_reference("refs/heads/main")
+        .unwrap()
+        .peel_to_commit()
+        .unwrap();
+    assert_eq!(c.author().name().unwrap(), "octo");
+    assert_eq!(
+        c.author().email().unwrap(),
+        "42+octo@users.noreply.github.com"
+    );
 }

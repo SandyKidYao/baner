@@ -2,13 +2,15 @@
 
 use baner_core::config::{ConfigStore, SyncConfig};
 use baner_core::crypto::{self, FileKey};
+use baner_core::github::{self, Https, Page, Poll, RepoList, Token};
 use baner_core::secrets::SecretStore;
 use baner_core::storage::{Block, Drawing, Store, TabMeta};
-use baner_core::sync::{self, Credentials, Detect, SyncReport};
+use baner_core::sync::{self, Author, Credentials, Detect, SyncReport};
 use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::{Manager, State};
+use tauri_plugin_opener::OpenerExt;
 
 struct AppState {
     store: Arc<Mutex<Store>>,
@@ -17,6 +19,9 @@ struct AppState {
     config: Arc<ConfigStore>,
     /// 同一时间只跑一次同步
     sync_lock: Arc<Mutex<()>>,
+    http: Arc<Https>,
+    /// 进行中的 GitHub 登录:device code 只留在这里,不交给界面
+    login: Arc<Mutex<Option<String>>>,
 }
 
 const TOKEN: &str = "git-token";
@@ -105,30 +110,126 @@ fn sync_status(state: State<AppState>) -> CmdResult<SyncStatus> {
     })
 }
 
-/// 保存远端配置。token 为 None 表示不修改;为空字符串表示删除。
+/// 界面拿到的验证码(不含 device code)
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LoginCode {
+    user_code: String,
+    /// 秒
+    interval: u64,
+    expires_in: u64,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "state", rename_all = "camelCase")]
+enum LoginPoll {
+    Pending,
+    SlowDown { interval: u64 },
+    Expired,
+    Denied,
+    Done { status: SyncStatus },
+}
+
+/// 网络请求放到后台线程,不阻塞界面。
+async fn blocking<T: Send + 'static>(
+    f: impl FnOnce() -> CmdResult<T> + Send + 'static,
+) -> CmdResult<T> {
+    tauri::async_runtime::spawn_blocking(f)
+        .await
+        .map_err(|e| baner_core::Error::Github(e.to_string()))?
+}
+
+/// GitHub 登录第一步:申请验证码。
 #[tauri::command]
-fn sync_configure(
-    state: State<AppState>,
-    remote_url: String,
-    username: Option<String>,
-    token: Option<String>,
-) -> CmdResult<SyncStatus> {
-    let url = remote_url.trim();
-    if url.is_empty() {
-        return Err(baner_core::Error::Git("empty remote url".into()));
-    }
-    sync::configure(&state.data_dir, url)?;
+async fn github_login_start(state: State<'_, AppState>) -> CmdResult<LoginCode> {
+    let http = state.http.clone();
+    let code = blocking(move || github::start_login(http.as_ref())).await?;
+    *state.login.lock().unwrap() = Some(code.device_code);
+    Ok(LoginCode {
+        user_code: code.user_code,
+        interval: code.interval,
+        expires_in: code.expires_in,
+    })
+}
+
+/// GitHub 登录第二步:界面按间隔调用,直到授权完成、过期或被拒绝。
+#[tauri::command]
+async fn github_login_poll(state: State<'_, AppState>) -> CmdResult<LoginPoll> {
+    let device = state
+        .login
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| baner_core::Error::Github("no login in progress".into()))?;
+    let http = state.http.clone();
+    let poll = blocking(move || github::poll_login(http.as_ref(), &device)).await?;
+    let token = match poll {
+        Poll::Pending => return Ok(LoginPoll::Pending),
+        Poll::SlowDown(interval) => return Ok(LoginPoll::SlowDown { interval }),
+        Poll::Expired | Poll::Denied => {
+            *state.login.lock().unwrap() = None;
+            return Ok(if matches!(poll, Poll::Expired) {
+                LoginPoll::Expired
+            } else {
+                LoginPoll::Denied
+            });
+        }
+        Poll::Done(t) => t,
+    };
+    *state.login.lock().unwrap() = None;
+    let http = state.http.clone();
+    let t = token.clone();
+    let user = blocking(move || github::current_user(http.as_ref(), &t)).await?;
+    state.secrets.set(TOKEN, token.expose())?;
     let mut c = state.config.load()?;
-    c.remote_url = Some(url.to_string());
-    c.username = username
-        .map(|u| u.trim().to_string())
-        .filter(|u| !u.is_empty());
+    c.github_login = Some(user.login);
+    c.github_id = Some(user.id);
     state.config.save(&c)?;
-    match token.as_deref().map(str::trim) {
-        Some("") => state.secrets.delete(TOKEN)?,
-        Some(t) => state.secrets.set(TOKEN, t)?,
-        None => {}
-    }
+    Ok(LoginPoll::Done {
+        status: sync_status(state)?,
+    })
+}
+
+/// 退出登录:删除本机 token,保留仓库选择(再次登录后接着用)。
+#[tauri::command]
+fn github_logout(state: State<AppState>) -> CmdResult<SyncStatus> {
+    *state.login.lock().unwrap() = None;
+    state.secrets.delete(TOKEN)?;
+    let mut c = state.config.load()?;
+    c.github_login = None;
+    c.github_id = None;
+    state.config.save(&c)?;
+    sync_status(state)
+}
+
+/// 用户授权给 Baner 的仓库。
+#[tauri::command]
+async fn github_repos(state: State<'_, AppState>) -> CmdResult<RepoList> {
+    let token = state
+        .secrets
+        .get(TOKEN)?
+        .map(Token::new)
+        .ok_or_else(|| baner_core::Error::Github("unauthorized".into()))?;
+    let http = state.http.clone();
+    blocking(move || github::list_repos(http.as_ref(), &token)).await
+}
+
+/// 在浏览器里打开 GitHub 的某个页面。地址由核心层给出,界面不能指定任意网址。
+#[tauri::command]
+fn github_open(app: tauri::AppHandle, page: Page) -> CmdResult<()> {
+    app.opener()
+        .open_url(github::page_url(page), None::<&str>)
+        .map_err(|e| baner_core::Error::Github(e.to_string()))
+}
+
+/// 选定同步用的仓库(`owner/repo`)。首次会初始化本地仓库。
+#[tauri::command]
+fn sync_use_repo(state: State<AppState>, full_name: String) -> CmdResult<SyncStatus> {
+    let url = github::remote_url(&full_name)?;
+    sync::configure(&state.data_dir, &url)?;
+    let mut c = state.config.load()?;
+    c.remote_url = Some(url);
+    state.config.save(&c)?;
     sync_status(state)
 }
 
@@ -147,9 +248,21 @@ fn set_tab_synced(state: State<AppState>, id: String, synced: bool) -> CmdResult
 async fn sync_now(state: State<'_, AppState>) -> CmdResult<SyncReport> {
     let dir = state.data_dir.clone();
     let cfg = state.config.load()?;
+    let author = match (&cfg.github_login, cfg.github_id) {
+        (Some(login), Some(id)) => Some(Author {
+            name: login.clone(),
+            email: github::User {
+                login: login.clone(),
+                id,
+            }
+            .noreply_email(),
+        }),
+        _ => None,
+    };
     let creds = Credentials {
-        username: cfg.username.clone(),
+        username: Some("x-access-token".into()),
         token: state.secrets.get(TOKEN)?,
+        author,
     };
     let lock = state.sync_lock.clone();
     let store = state.store.clone();
@@ -214,6 +327,7 @@ fn app_ready(window: tauri::WebviewWindow) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             // BANER_APP_DIR / BANER_DATA_DIR 可覆盖默认位置(例如在一台机器上模拟两台设备)
             let app_dir: PathBuf = std::env::var_os("BANER_APP_DIR")
@@ -234,6 +348,8 @@ pub fn run() {
                 secrets: Arc::new(secrets),
                 config: Arc::new(ConfigStore::new(app_dir.join("config.json"))),
                 sync_lock: Arc::new(Mutex::new(())),
+                http: Arc::new(Https::default()),
+                login: Arc::new(Mutex::new(None)),
             });
             Ok(())
         })
@@ -247,7 +363,12 @@ pub fn run() {
             save_tab,
             delete_tab,
             sync_status,
-            sync_configure,
+            github_login_start,
+            github_login_poll,
+            github_logout,
+            github_repos,
+            github_open,
+            sync_use_repo,
             set_tab_synced,
             sync_now,
             crypto_status,

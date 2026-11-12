@@ -1,21 +1,14 @@
 import { useState } from "react";
 import { describeCryptoError } from "../crypto/errors";
 import { MasterKey } from "../crypto/MasterKey";
-import {
-  type CryptoStatus,
-  type SyncStatus,
-  setTabEncrypted,
-  setTabSynced,
-  syncConfigure,
-  type TabMeta,
-} from "../ipc";
-import { CheckIcon, CrossIcon, EyeIcon, LockIcon, SyncIcon } from "../rail/icons";
-import { describeSyncError } from "../sync/errors";
+import { type CryptoStatus, type SyncStatus, setTabEncrypted, setTabSynced, type TabMeta } from "../ipc";
+import { CrossIcon, LockIcon, SyncIcon } from "../rail/icons";
+import { GithubSync } from "./GithubSync";
 
 interface Props {
   tabs: TabMeta[];
   status: SyncStatus | null;
-  /** 保存成功后调用,由调用方立即同步 */
+  /** 登录、选仓库、退出登录之后调用,由调用方立即同步 */
   onSaved: (s: SyncStatus) => void;
   crypto: CryptoStatus | null;
   onCryptoChanged: (s: CryptoStatus) => void;
@@ -26,14 +19,7 @@ interface Props {
   onClose: () => void;
 }
 
-const Mark = ({ ok, label }: { ok: boolean; label: string }) => (
-  <span className={ok ? "mark ok" : "mark no"}>
-    {ok ? <CheckIcon /> : <CrossIcon />}
-    {label}
-  </span>
-);
-
-/** 同步与加密配置:检测结果 → 仓库与 token → 每个 tab 的开关 → 本机主密钥。 */
+/** 同步与加密配置:GitHub 登录与仓库 → 本机主密钥 → 每个 tab 的开关。 */
 export function SettingsPanel({
   tabs,
   status,
@@ -44,27 +30,7 @@ export function SettingsPanel({
   onSyncChanged,
   onClose,
 }: Props) {
-  const [url, setUrl] = useState(status?.config.remoteUrl ?? "");
-  const [user, setUser] = useState(status?.config.username ?? "");
-  const [token, setToken] = useState("");
-  const [show, setShow] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
   const unsynced = status?.config.unsyncedTabs ?? [];
-
-  const save = async () => {
-    setBusy(true);
-    setErr(null);
-    try {
-      const s = await syncConfigure(url, user.trim() || null, token === "" ? undefined : token);
-      setToken("");
-      onSaved(s);
-    } catch (e) {
-      setErr(describeSyncError(e));
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const [lockErr, setLockErr] = useState<string | null>(null);
   const toggleLock = async (t: TabMeta) => {
@@ -83,7 +49,6 @@ export function SettingsPanel({
     await onSyncChanged();
   };
 
-  const d = status?.detect;
   return (
     <section className="panel" aria-label="同步与加密">
       <header className="panel-head">
@@ -95,68 +60,7 @@ export function SettingsPanel({
         </button>
       </header>
 
-      <div className="detect">
-        <Mark ok={!!d?.isRepo} label="git 仓库" />
-        <Mark ok={!!d?.remoteUrl} label="远端" />
-        <Mark ok={!!status?.hasToken} label="token" />
-      </div>
-
-      <form
-        className="fields"
-        onSubmit={(e) => {
-          e.preventDefault();
-          save();
-        }}
-      >
-        <label className="field">
-          <span>仓库</span>
-          <input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://github.com/me/notes.git"
-            spellCheck={false}
-            autoCapitalize="off"
-            required
-          />
-        </label>
-        <label className="field">
-          <span>用户名(可选)</span>
-          <input
-            value={user}
-            onChange={(e) => setUser(e.target.value)}
-            spellCheck={false}
-            autoCapitalize="off"
-          />
-        </label>
-        <label className="field">
-          <span>token{status?.hasToken ? "(已保存,留空不修改)" : ""}</span>
-          <span className="with-btn">
-            <input
-              type={show ? "text" : "password"}
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              spellCheck={false}
-              autoComplete="off"
-            />
-            <button
-              type="button"
-              className="sym"
-              aria-label={show ? "隐藏 token" : "显示 token"}
-              onClick={() => setShow(!show)}
-            >
-              <EyeIcon />
-            </button>
-          </span>
-        </label>
-        {err && (
-          <p className="err" role="alert">
-            ✕ {err}
-          </p>
-        )}
-        <button type="submit" className="primary" disabled={busy || !url.trim()}>
-          <SyncIcon /> 保存并同步
-        </button>
-      </form>
+      <GithubSync status={status} onChanged={onSaved} />
 
       <h3 className="sub">
         <LockIcon /> 主密钥

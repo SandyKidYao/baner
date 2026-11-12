@@ -5,10 +5,17 @@ import type { Block, Drawing, TabMeta } from "./types";
 const KEY = "baner-mock-store";
 type MockSync = {
   remoteUrl: string | null;
-  username: string | null;
+  githubLogin: string | null;
   unsyncedTabs: string[];
   hasToken: boolean;
 };
+const NO_SYNC: MockSync = { remoteUrl: null, githubLogin: null, unsyncedTabs: [], hasToken: false };
+const config = (c: MockSync) => ({
+  remoteUrl: c.remoteUrl,
+  githubLogin: c.githubLogin,
+  githubId: c.githubLogin ? 1 : null,
+  unsyncedTabs: c.unsyncedTabs,
+});
 type Db = Record<string, Block[]> & {
   __tabs?: TabMeta[];
   __sync?: MockSync;
@@ -104,33 +111,63 @@ export function installMockIpc() {
         write(db);
         return null;
       case "sync_status": {
-        const c = db.__sync ?? { remoteUrl: null, username: null, unsyncedTabs: [], hasToken: false };
+        const c = db.__sync ?? NO_SYNC;
         return {
           detect: { isRepo: !!c.remoteUrl, remoteUrl: c.remoteUrl, hasCommits: false },
-          config: { remoteUrl: c.remoteUrl, username: c.username, unsyncedTabs: c.unsyncedTabs },
+          config: config(c),
           hasToken: c.hasToken,
         };
       }
-      case "sync_configure": {
-        const x = args as { remoteUrl: string; username: string | null; token: string | null };
-        const prev = db.__sync ?? { remoteUrl: null, username: null, unsyncedTabs: [], hasToken: false };
-        db.__sync = {
-          ...prev,
-          remoteUrl: x.remoteUrl.trim(),
-          username: x.username,
-          hasToken: x.token === null ? prev.hasToken : x.token.trim() !== "",
+      case "github_login_start":
+        localStorage.setItem("baner-mock-github-polls", "0");
+        return { userCode: "WDJB-MJHT", interval: 0.05, expiresIn: 900 };
+      case "github_login_poll": {
+        // 测试可设置 localStorage["baner-mock-github-poll"] = pending / denied / expired;不设则第二次轮询完成
+        const n = Number(localStorage.getItem("baner-mock-github-polls")) + 1;
+        localStorage.setItem("baner-mock-github-polls", String(n));
+        const forced = localStorage.getItem("baner-mock-github-poll");
+        if (forced) return { state: forced };
+        if (n < 2) return { state: "pending" };
+        db.__sync = { ...(db.__sync ?? NO_SYNC), githubLogin: "octo", hasToken: true };
+        write(db);
+        return { state: "done", status: handler("sync_status", {}) };
+      }
+      case "github_logout":
+        db.__sync = { ...(db.__sync ?? NO_SYNC), githubLogin: null, hasToken: false };
+        write(db);
+        return handler("sync_status", {});
+      case "github_repos": {
+        // 测试可设置 localStorage["baner-mock-github-repos"] 为 RepoList 的 JSON
+        const custom = localStorage.getItem("baner-mock-github-repos");
+        if (custom) return JSON.parse(custom);
+        return {
+          installed: true,
+          repos: [
+            { fullName: "octo/baner-notes", private: true, pushedAt: "2026-11-01T00:00:00Z" },
+            { fullName: "octo/blog", private: false, pushedAt: "2026-10-01T00:00:00Z" },
+          ],
         };
+      }
+      case "github_open": {
+        const opened = JSON.parse(localStorage.getItem("baner-mock-opened") ?? "[]") as string[];
+        opened.push((args as { page: string }).page);
+        localStorage.setItem("baner-mock-opened", JSON.stringify(opened));
+        return null;
+      }
+      case "sync_use_repo": {
+        const name = (args as { fullName: string }).fullName;
+        db.__sync = { ...(db.__sync ?? NO_SYNC), remoteUrl: `https://github.com/${name}.git` };
         write(db);
         return handler("sync_status", {});
       }
       case "set_tab_synced": {
         const x = args as { id: string; synced: boolean };
-        const c = db.__sync ?? { remoteUrl: null, username: null, unsyncedTabs: [], hasToken: false };
+        const c = db.__sync ?? { ...NO_SYNC };
         c.unsyncedTabs = c.unsyncedTabs.filter((t) => t !== x.id);
         if (!x.synced) c.unsyncedTabs.push(x.id);
         db.__sync = c;
         write(db);
-        return { remoteUrl: c.remoteUrl, username: c.username, unsyncedTabs: c.unsyncedTabs };
+        return config(c);
       }
       case "sync_now": {
         // 测试可设置 localStorage["baner-mock-sync-error"] 来模拟失败

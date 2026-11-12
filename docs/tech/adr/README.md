@@ -14,3 +14,4 @@
 | [0006](0006-secret-storage-os-keystore.md) | 密钥存系统钥匙串 | superseded(被 0008 取代) |
 | [0007](0007-ui-framework-react.md) | 界面框架:React | accepted |
 | [0008](0008-secrets-local-file.md) | 密钥存成本机私有文件(0600,在数据目录之外) | accepted |
+| [0009](0009-github-app-device-flow.md) | 用 GitHub App 的 Device Flow 登录,取代手动填写 token | accepted |

@@ -549,22 +549,10 @@ svg {
   margin: var(--space-6) 0 var(--space-2);
   font-size: var(--text-md);
 }
-.detect {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin: 0 0 var(--space-4);
-  font-size: var(--text-sm);
-}
 .mark {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-}
-.detect .mark {
-  padding: 1px var(--space-2);
-  border-radius: 999px;
-  background: var(--color-surface-2);
 }
 .mark svg,
 .warn svg,
@@ -702,6 +690,107 @@ svg {
 .hint {
   font-size: var(--text-sm);
   margin-top: var(--space-3);
+}
+.fields .hint {
+  margin: 0;
+}
+
+/* GitHub 登录与仓库 */
+.gh-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-2);
+}
+.gh-row > :first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.gh-account {
+  font-weight: var(--weight-strong);
+}
+.gh-current {
+  padding: 6px var(--space-2);
+  border-radius: 8px;
+  background: var(--color-surface-2);
+}
+.gh-current > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.gh-current svg,
+.gh-row .sym svg {
+  width: 14px;
+  height: 14px;
+}
+.device-code {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 8px;
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font: var(--weight-strong) var(--text-xl) var(--font-ui);
+  letter-spacing: 0.12em;
+  text-align: center;
+  user-select: all;
+}
+.repo-list {
+  list-style: none;
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  padding: 0;
+  border-radius: 8px;
+  background: var(--color-surface-2);
+}
+.repo-list li {
+  border-top: var(--border-width) solid var(--color-divider);
+}
+.repo-list li:first-child {
+  border-top: 0;
+}
+.repo-list li.muted {
+  padding: 6px var(--space-2);
+  font-size: var(--text-sm);
+}
+.repo-list button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 6px var(--space-2);
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font: var(--text-md) var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+.repo-list button > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.repo-list button:hover:not(:disabled) {
+  background: var(--color-hover);
+}
+.repo-list button:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}
+.repo-list button[aria-current] {
+  font-weight: var(--weight-strong);
+}
+.repo-list svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--color-muted);
+}
+.repo-list button[aria-current] svg {
+  color: var(--color-success);
 }
 
 /* 加密 tab、本机没有主密钥 */

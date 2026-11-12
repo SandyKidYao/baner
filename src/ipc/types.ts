@@ -31,7 +31,9 @@ export interface CryptoStatus {
 
 export interface SyncConfig {
   remoteUrl: string | null;
-  username: string | null;
+  /** 登录的 GitHub 账号;为空表示没有用 GitHub 登录 */
+  githubLogin: string | null;
+  githubId: number | null;
   unsyncedTabs: string[];
 }
 
@@ -47,3 +49,33 @@ export interface SyncReport {
   conflicts: string[];
   pushed: boolean;
 }
+
+/** GitHub 登录的验证码。秒为单位 */
+export interface LoginCode {
+  userCode: string;
+  interval: number;
+  expiresIn: number;
+}
+
+export type LoginPoll =
+  | { state: "pending" }
+  | { state: "slowDown"; interval: number }
+  | { state: "expired" }
+  | { state: "denied" }
+  | { state: "done"; status: SyncStatus };
+
+export interface Repo {
+  /** owner/repo */
+  fullName: string;
+  private: boolean;
+  pushedAt: string | null;
+}
+
+export interface RepoList {
+  /** 是否已经在某个账号上安装了 Baner 的 GitHub App */
+  installed: boolean;
+  repos: Repo[];
+}
+
+/** 应用能替用户打开的 GitHub 页面 */
+export type GithubPage = "device" | "install" | "newRepo";

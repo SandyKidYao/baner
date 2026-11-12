@@ -1,6 +1,6 @@
 # 系统架构
 
-Baner 是一个本地应用,没有服务器、没有账号体系,也不调用第三方 API。同步交给用户自己的 git 仓库。
+Baner 是一个本地应用,没有服务器、没有自己的账号体系。同步交给用户自己的 GitHub 仓库,登录用 GitHub App 的 Device Flow(ADR-0009)。
 
 已实现的平台是 macOS。整体设计以 Mac + Android 为目标(之后是 Windows、iOS),所以核心逻辑与界面都按跨端来组织。
 
@@ -12,7 +12,7 @@ Baner 是一个本地应用,没有服务器、没有账号体系,也不调用第
 |---|---|---|
 | D1 | 轻快 | 冷启动时间和空闲内存不差于 HeyNote(Electron 应用);Android 上打开即可写 |
 | D2 | 一套代码跨端 | Mac、Android,之后 Windows、iOS;一个人开发,代码主要由 AI 写 |
-| D3 | 应用内 git 同步 | 不依赖命令行 git,应用内部完成 fetch、merge、commit、push;使用 HTTPS token |
+| D3 | 应用内 git 同步 | 不依赖命令行 git,应用内部完成 fetch、merge、commit、push;通过 HTTPS,token 来自 GitHub 登录 |
 | D4 | 数据即文件 | 一个 tab 一个文件夹,一个块一组文件;明文 tab 在 git 里人能直接读 |
 | D5 | 端侧加密可信 | 加密 tab 的内容和 tab 名在仓库里都是密文;主密钥和 token 不出设备 |
 | D6 | 编辑手感 | `⌘↵` 新建块、`⌘A` 选中当前块与 HeyNote 一致;图块编辑接近 Excalidraw |
@@ -20,9 +20,9 @@ Baner 是一个本地应用,没有服务器、没有账号体系,也不调用第
 
 ## 系统上下文
 
-- **用户的 git 仓库**(GitHub、Gitee 等):唯一的外部系统,通过 HTTPS 和 token 进行 fetch 与 push。
+- **GitHub**:唯一的外部系统。用户用 GitHub App「baner-notes」登录(Device Flow),只授权存笔记的仓库;应用通过 HTTPS 和这个 token 列出仓库、fetch 与 push(ADR-0009)。
 - **本机密钥文件** `secrets.json`:保存 token 和解开的文件钥匙,权限 0600,必须在数据目录之外(ADR-0008)。
-- **本机配置** `config.json`:远端地址、用户名、本机不同步的 tab。不进仓库。
+- **本机配置** `config.json`:远端地址、登录的 GitHub 账号、本机不同步的 tab。不进仓库。
 
 macOS 上三者都在 `~/Library/Application Support/dev.baner.app/` 下,数据目录是其中的 `data/`。
 
