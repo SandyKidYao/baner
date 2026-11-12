@@ -47,6 +47,7 @@ export function TabEditor({ tab, mdMode, onReady, autoFocus = true, onSaved, api
   const ready = useRef(onReady);
   ready.current = onReady;
   const focus = useRef(autoFocus);
+  focus.current = autoFocus; // 载入期间开始改名(双击还没载入完的 tab)时,不要抢走输入框的焦点
   const saved$ = useRef(onSaved);
   saved$.current = onSaved;
 

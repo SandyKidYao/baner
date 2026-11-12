@@ -19,12 +19,18 @@ interface Props {
   onRenamed: (t: TabMeta | null) => void;
 }
 
-const DRAG_START_PX = 5;
+/** 按住多久才能拖动排序:短按是切换,避免点击时手一抖就把 tab 拖走 */
+export const LONG_PRESS_MS = 350;
+/** 按住期间指针移动超过这个距离就不算长按(当作普通点击或手滑) */
+const PRESS_SLOP_PX = 5;
 
 interface Drag {
   id: string;
   x0: number;
+  y0: number;
   dx: number;
+  /** 已按够时长,可以拖动 */
+  armed: boolean;
   moved: boolean;
   before: string | null;
 }
@@ -42,12 +48,13 @@ export function menuPoint(e: React.MouseEvent<HTMLElement>) {
 
 /**
  * 页面岛顶部的 tab 条:单字 + 名称,当前 tab 是浅底加主色下划线。
- * 左右拖动排序,右键打开菜单;点当前 tab(或菜单里的「改名」)原地改名。
+ * 单击切换;双击(或 F2、菜单里的「改名」)原地改名;长按后左右拖动排序;右键打开菜单。
  */
 export function TabStrip(p: Props) {
   const { tabs, activeId, onSelect, onMove, onMenu } = p;
   const refs = useRef(new Map<string, HTMLButtonElement>());
   const drag = useRef<Drag | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [dragging, setDragging] = useState<Drag | null>(null);
   const suppressClick = useRef(false);
   const movable = tabs.filter((t) => !t.locked);
@@ -72,9 +79,11 @@ export function TabStrip(p: Props) {
     return d.before === (movable[i + 1]?.id ?? null);
   };
   const end = () => {
+    clearTimeout(timer.current);
     drag.current = null;
     setDragging(null);
   };
+  useEffect(() => () => clearTimeout(timer.current), []);
 
   const shown = dragging?.moved && !isNoop(dragging) ? dragging : null;
   const lastMovable = movable[movable.length - 1]?.id;
@@ -87,7 +96,7 @@ export function TabStrip(p: Props) {
           const name = t.locked ? "加密 tab" : t.name;
           const act = t.id === activeId;
           let cls = act ? "tab act" : "tab";
-          if (dragging?.moved && dragging.id === t.id) cls += " dragging";
+          if (dragging?.id === t.id) cls += " dragging";
           if (shown?.before === t.id) cls += " drop-before";
           if (shown && shown.before === null && t.id === lastMovable) cls += " drop-after";
 
@@ -114,19 +123,37 @@ export function TabStrip(p: Props) {
               }
               aria-current={act ? "page" : undefined}
               aria-label={name}
-              title={
-                t.locked ? `${name}${hint}` : `${name}${hint}(${act ? "点击改名," : ""}拖动排序,右键更多)`
-              }
+              title={t.locked ? `${name}${hint}` : `${name}${hint}(双击改名,长按拖动排序,右键更多)`}
               onPointerDown={(e) => {
                 if (e.button !== 0 || t.locked) return;
-                drag.current = { id: t.id, x0: e.clientX, dx: 0, moved: false, before: null };
+                const d: Drag = {
+                  id: t.id,
+                  x0: e.clientX,
+                  y0: e.clientY,
+                  dx: 0,
+                  armed: false,
+                  moved: false,
+                  before: null,
+                };
+                drag.current = d;
                 e.currentTarget.setPointerCapture(e.pointerId);
+                clearTimeout(timer.current);
+                timer.current = setTimeout(() => {
+                  if (drag.current !== d) return;
+                  d.armed = true; // 按够了:tab 浮起,可以拖了
+                  setDragging({ ...d });
+                }, LONG_PRESS_MS);
               }}
               onPointerMove={(e) => {
                 const d = drag.current;
                 if (!d) return;
                 const dx = e.clientX - d.x0;
-                if (!d.moved && Math.abs(dx) < DRAG_START_PX) return;
+                if (!d.armed) {
+                  // 没按够就移动了:不是长按,放弃这次拖动(松开时照常算点击)
+                  if (Math.hypot(dx, e.clientY - d.y0) > PRESS_SLOP_PX) end();
+                  return;
+                }
+                if (!d.moved && Math.abs(dx) < PRESS_SLOP_PX) return;
                 d.moved = true;
                 d.dx = dx;
                 d.before = beforeAt(e.clientX, d.id);
@@ -135,12 +162,12 @@ export function TabStrip(p: Props) {
               onPointerUp={() => {
                 const d = drag.current;
                 end();
-                if (!d?.moved) return;
+                if (!d?.armed) return;
                 suppressClick.current = true; // 拖动结束时浏览器还会补发一次 click
                 setTimeout(() => {
                   suppressClick.current = false;
                 }, 0);
-                if (!isNoop(d)) onMove(d.id, d.before);
+                if (d.moved && !isNoop(d)) onMove(d.id, d.before);
               }}
               onPointerCancel={end}
               onClick={() => {
@@ -148,10 +175,17 @@ export function TabStrip(p: Props) {
                   suppressClick.current = false;
                   return;
                 }
-                if (act && !t.locked) p.onRename(t.id);
-                else onSelect(t.id);
+                if (!act) onSelect(t.id);
+              }}
+              onDoubleClick={() => {
+                if (!t.locked) p.onRename(t.id);
               }}
               onKeyDown={(e) => {
+                if (e.key === "F2" && !t.locked) {
+                  e.preventDefault();
+                  p.onRename(t.id);
+                  return;
+                }
                 if (!isMenuKey(e)) return;
                 e.preventDefault();
                 const r = e.currentTarget.getBoundingClientRect();

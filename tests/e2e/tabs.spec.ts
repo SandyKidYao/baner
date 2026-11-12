@@ -10,6 +10,8 @@ const editor = (page: Page) => page.getByTestId("editor");
 const firstLine = (page: Page) => page.locator(".cm-line.blk-first").first();
 const menu = (page: Page) => page.getByRole("menu");
 const menuItem = (page: Page, name: string | RegExp) => menu(page).getByRole("menuitem", { name });
+/** 与 src/rail/TabStrip.tsx 的 LONG_PRESS_MS 一致 */
+const LONG_PRESS_MS = 350;
 
 test("首次打开自动建好「工作」tab", async ({ page }) => {
   await page.goto("/");
@@ -82,33 +84,46 @@ async function makeTabs(page: Page, names: string[]) {
   }
 }
 
-/** 用鼠标把第 from 个 tab 拖到第 to 个 tab 的左半部分 */
-async function dragTab(page: Page, from: number, to: number) {
+/** 按住第 from 个 tab(hold 为 true 时先等过长按时长),拖到 x 处松开 */
+async function pressAndDrag(page: Page, from: number, x: (b: Box) => number, hold = true) {
   const a = await tabButtons(page).nth(from).boundingBox();
-  const b = await tabButtons(page).nth(to).boundingBox();
-  if (!a || !b) throw new Error("no box");
+  if (!a) throw new Error("no box");
   await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
   await page.mouse.down();
-  await page.mouse.move(b.x + 4, b.y + b.height / 2, { steps: 8 });
-  await page.mouse.up();
+  if (hold) {
+    await page.waitForTimeout(LONG_PRESS_MS + 100);
+    await expect(rail(page).locator(".tab.dragging")).toHaveCount(1); // 浮起
+  }
+  return async (to: number) => {
+    const b = await tabButtons(page).nth(to).boundingBox();
+    if (!b) throw new Error("no box");
+    await page.mouse.move(x(b), b.y + b.height / 2, { steps: 8 });
+    await page.mouse.up();
+  };
+}
+type Box = { x: number; y: number; width: number; height: number };
+
+/** 长按第 from 个 tab,拖到第 to 个 tab 的左半部分 */
+async function dragTab(page: Page, from: number, to: number) {
+  await (await pressAndDrag(page, from, (b) => b.x + 4))(to);
 }
 
-test("拖动排序 tab,重启后顺序不变;拖动不会误触切换", async ({ page }) => {
+test("长按后拖动排序 tab,重启后顺序不变;拖动不会误触切换", async ({ page }) => {
   await page.goto("/");
   await makeTabs(page, ["甲", "乙"]);
   await expect(glyphs(page)).toHaveText(["工", "甲", "乙"]);
+
+  // 没按够就拖:不排序
+  await (await pressAndDrag(page, 2, (b) => b.x + 4, false))(0);
+  await expect(glyphs(page)).toHaveText(["工", "甲", "乙"]);
+  await expect(rail(page).locator(".tab.dragging")).toHaveCount(0);
+
   await dragTab(page, 2, 0);
   await expect(glyphs(page)).toHaveText(["乙", "工", "甲"]);
   await expect(current(page)).toHaveText("乙"); // 当前 tab 没变
 
   // 拖到最后:落在最后一个 tab 的右半部分
-  const a = await tabButtons(page).nth(0).boundingBox();
-  const b = await tabButtons(page).nth(2).boundingBox();
-  if (!a || !b) throw new Error("no box");
-  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(b.x + b.width - 2, b.y + b.height / 2, { steps: 8 });
-  await page.mouse.up();
+  await (await pressAndDrag(page, 0, (b) => b.x + b.width - 2))(2);
   await expect(glyphs(page)).toHaveText(["工", "甲", "乙"]);
 
   await page.waitForTimeout(100);
@@ -182,10 +197,12 @@ test("同步与加密在桌面上是页面右侧的岛,不盖住正在写的页�
   expect(p && e && p.x >= e.x + e.width).toBeTruthy();
 });
 
-test("点当前 tab 原地改名;右键菜单「改名」改别的 tab;Esc 取消", async ({ page }) => {
+test("双击 tab 原地改名(单击当前 tab 不改名);右键菜单「改名」改别的 tab;Esc 取消", async ({ page }) => {
   await page.goto("/");
   await makeTabs(page, ["甲"]);
   await rail(page).locator(".tab.act").click();
+  await expect(page.getByLabel("tab 名称")).toHaveCount(0);
+  await rail(page).locator(".tab.act").dblclick();
   await page.getByLabel("tab 名称").fill("甲方");
   await page.getByLabel("tab 名称").press("Enter");
   await expect(current(page)).toHaveText("甲方");
