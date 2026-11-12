@@ -15,7 +15,11 @@
 - **端侧加密**:加密 tab 的内容和名字在仓库里都是密文(age 格式),不用板儿也能用 `age` 命令行工具解开。
 - **数据即文件**:文本块就是普通的 `.md` 文件,明文 tab 在 git 网页上直接能读。
 
-## 两步跑起来(macOS)
+## 下载
+
+[下载最新版 `.dmg`](https://github.com/SandyKidYao/baner/releases/latest/download/Baner_macOS_universal.dmg)(macOS 11+,Apple 芯片与 Intel 通用),把 Baner 拖进「应用程序」;历史版本和更新说明在 [Releases](https://github.com/SandyKidYao/baner/releases)。这个版本是 ad-hoc 签名、没有公证,第一次打开时在「系统设置 → 隐私与安全性」里点「仍要打开」,或执行 `xattr -dr com.apple.quarantine /Applications/Baner.app`。
+
+## 从源码跑起来(macOS)
 
 需要 Node 22+、Rust stable、Xcode 命令行工具。先取得源码:
 
@@ -30,7 +34,7 @@ npm install                    # 1. 安装依赖(同时启用提交前钩子)
 npm run tauri dev              # 2. 启动开发版
 ```
 
-安装正式版:`scripts/install-app.sh`(release 构建、ad-hoc 签名、不公证,装到 `/Applications/Baner.app`)。本机构建的应用不带隔离标记,可以直接打开。
+自己打正式版:`scripts/install-app.sh`(release 构建、ad-hoc 签名、不公证,装到 `/Applications/Baner.app`)。本机构建的应用不带隔离标记,可以直接打开。
 
 数据在 `~/Library/Application Support/dev.baner.app/`:`data/` 是数据目录(可以作为 git 仓库同步),`secrets.json` 和 `config.json` 只留在本机。
 
@@ -57,7 +61,7 @@ scripts/check.sh --fast        # 只做格式、lint、类型(提交前钩子用
 | `crates/baner-core/` | 核心逻辑(纯 Rust):存储、加密、git 同步、本机密钥文件 |
 | `src-tauri/` | Tauri 外壳,只注册命令 |
 | `tests/e2e/` | 浏览器内的界面冒烟测试(核心层命令被模拟) |
-| `scripts/` | 检查、安装、性能测量脚本 |
+| `scripts/` | 检查、安装、发版、性能测量脚本 |
 
 ## 文档
 

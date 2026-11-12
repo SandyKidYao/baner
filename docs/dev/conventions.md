@@ -20,7 +20,7 @@ crates/baner-core/         核心逻辑(纯 Rust,不依赖 Tauri,可单独测试
   src/secrets/             本机私有密钥文件
   src/config.rs            本机配置
 src-tauri/                 Tauri 外壳:只注册命令,转交给 baner-core
-scripts/                   检查、安装、性能测量
+scripts/                   检查、安装、发版、性能测量
 tests/e2e/                 浏览器内的界面冒烟测试(核心层命令被模拟)
 ```
 
@@ -37,6 +37,18 @@ tests/e2e/                 浏览器内的界面冒烟测试(核心层命令被�
 
 - 主干开发(`main`),短生命周期的功能分支命名为 `feat/<slug>`、`fix/<slug>`,squash 合并回 `main`。
 - 提交信息使用 Conventional Commits(`feat:`、`fix:`、`docs:`…)。
+
+## 发版
+
+```bash
+scripts/release.sh 0.2.0        # 改好各处版本号,提交 chore(release): v0.2.0 并打 tag
+git push origin main v0.2.0     # 推送 tag 触发 .github/workflows/release.yml
+```
+
+- 版本号同时存在于 `package.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`(和两个 lock 文件),只通过 `scripts/release.sh` 修改;CI 会校验 tag 与它们一致。
+- CI 先跑 `scripts/check.sh` 全部检查,再在 macOS 上构建 universal(Apple 芯片 + Intel)的 `Baner_macOS_universal.dmg` 和 `.app.zip`,附 `SHA256SUMS.txt` 发布到 GitHub Release。文件名不带版本号,产品页和 README 用 `releases/latest/download/Baner_macOS_universal.dmg` 指向最新版,改名要同步改这两处。带 `-` 的版本(如 `0.2.0-beta.1`)发成 prerelease。
+- 构建失败修好后,可以在 Actions 页手动运行 Release 并填入已有 tag 重新发布;已存在的 Release 会覆盖同名产物。
+- 和本机构建一样是 ad-hoc 签名、不公证,下载的用户第一次打开需要手动放行(Release 说明里写了做法)。
 
 ## 代码风格与检查
 

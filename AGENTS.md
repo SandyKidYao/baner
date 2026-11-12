@@ -11,6 +11,7 @@ scripts/check.sh             # 全部检查:格式、lint、类型、Rust 测试
 scripts/check.sh --fast      # 只做格式、lint、类型(提交前钩子会跑)
 cargo test -p baner-core     # 只跑核心层测试
 scripts/install-app.sh       # release 构建并装到 /Applications
+scripts/release.sh 0.2.0     # 发版:改版本号、提交、打 tag;推 tag 后 CI 构建并发布 Release
 ```
 
 ## 硬规则
