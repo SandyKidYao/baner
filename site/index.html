@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Baner 分块记事板</title>
-<meta name="description" content="超轻量的 macOS 分块记事板:同页分块书写、图块、按 tab 的 git 同步与端侧加密。数据就是你自己 git 仓库里的普通文件。">
+<title>板儿 Baner</title>
+<meta name="description" content="板儿(Baner),一块超轻量的 macOS 分块记事板:同页分块书写、图块、按 tab 的 git 同步与端侧加密。数据就是你自己 git 仓库里的普通文件。">
 <meta name="theme-color" content="#1f2238">
 <link rel="icon" href="icon.png">
 <style>
@@ -166,7 +166,11 @@ p { margin: 0 0 12px; max-width: 64ch; }
 .lede { font-size: 16px; color: var(--muted); max-width: 52ch; }
 
 .hero { padding-top: 40px; padding-bottom: 36px; }
-.hero .logo { width: 72px; height: 72px; border-radius: 16px; display: block; margin-bottom: 22px; }
+.brand { display: flex; align-items: center; gap: 16px; margin-bottom: 22px; }
+.hero .logo { width: 72px; height: 72px; border-radius: 16px; display: block; }
+.name { margin: 0; display: grid; line-height: 1.35; }
+.name strong { font-size: 18px; }
+.name span { color: var(--muted); }
 
 kbd {
   display: inline-block;
@@ -261,6 +265,7 @@ code { font: inherit; font-size: 0.94em; background: var(--code-bg); padding: 1p
   .num { font-size: 12px; min-width: 26px; }
   .hero { padding-top: 28px; }
   .hero .logo { width: 56px; height: 56px; }
+  .brand { gap: 12px; }
   .tab { padding: 10px 8px 8px; }
   .status .hint { display: none; }
 }
@@ -274,7 +279,7 @@ code { font: inherit; font-size: 0.94em; background: var(--code-bg); padding: 1p
 <div class="window">
   <main class="island">
     <nav class="tabs" aria-label="页面导航">
-      <a class="tab" href="#top" aria-current="page"><span class="glyph" aria-hidden="true">板</span>Baner</a>
+      <a class="tab" href="#top" aria-current="page"><span class="glyph" aria-hidden="true">板</span>板儿</a>
       <a class="tab" href="#install"><span class="glyph" aria-hidden="true">装</span>安装</a>
       <a class="tab" href="https://github.com/SandyKidYao/baner/tree/main/docs"><span class="glyph" aria-hidden="true">文</span>文档</a>
       <a class="tab" href="https://github.com/SandyKidYao/baner"><span class="glyph" aria-hidden="true">码</span>源码</a>
@@ -284,9 +289,12 @@ code { font: inherit; font-size: 0.94em; background: var(--code-bg); padding: 1p
       <section class="block hero current" id="top">
         <span class="num">01</span>
         <div class="body">
-          <img class="logo" src="icon.png" alt="" width="72" height="72">
+          <div class="brand">
+            <img class="logo" src="icon.png" alt="" width="72" height="72">
+            <p class="name"><strong>板儿</strong><span lang="en">Baner</span></p>
+          </div>
           <h1><span class="mk"># </span>同一页,分块写。</h1>
-          <p class="lede">Baner 是一个超轻量的 macOS 记事板。<kbd>⌘↵</kbd> 开一个新块,文字、代码和图都写在同一页上。数据就是你自己 git 仓库里的普通文件。</p>
+          <p class="lede">一块超轻量的 macOS 记事板。<kbd>⌘↵</kbd> 开一个新块,文字、代码和图都写在同一页上。数据就是你自己 git 仓库里的普通文件。</p>
           <div class="actions">
             <a class="btn primary" href="#install">从源码安装</a>
             <a class="btn" href="https://github.com/SandyKidYao/baner">
@@ -304,7 +312,7 @@ code { font: inherit; font-size: 0.94em; background: var(--code-bg); padding: 1p
             <picture>
               <source srcset="app-dark.png" media="(prefers-color-scheme: dark)">
               <img src="app-light.png" width="1080" height="720" loading="lazy"
-                alt="Baner 的主界面:顶部是 tab 条,下面依次是待办清单、SQL 代码块、一段文字和一张手绘图,第 03 块是当前块,底部状态栏列出快捷键。">
+                alt="板儿的主界面:顶部是 tab 条,下面依次是待办清单、SQL 代码块、一段文字和一张手绘图,第 03 块是当前块,底部状态栏列出快捷键。">
             </picture>
           </figure>
         </div>
@@ -346,7 +354,7 @@ code { font: inherit; font-size: 0.94em; background: var(--code-bg); padding: 1p
         <span class="num">07</span>
         <div class="body">
           <h2><span class="mk">## </span>端侧加密</h2>
-          <p>加密 tab 的内容和名字在仓库里都是密文(age 格式)。不用 Baner,也能用 <code>age</code> 命令行工具解开。</p>
+          <p>加密 tab 的内容和名字在仓库里都是密文(age 格式)。不用板儿,也能用 <code>age</code> 命令行工具解开。</p>
         </div>
       </section>
 
