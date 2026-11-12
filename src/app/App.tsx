@@ -46,7 +46,7 @@ export default function App() {
     editor: editorApi,
     activeTab: active?.id ?? null,
     onTabsChanged: refresh,
-    onKeyReset: reloadCrypto,
+    onSynced: reloadCrypto,
   });
   const [settings, setSettings] = useState(false);
   const [epoch, setEpoch] = useState(0); // 加密状态变化后重建编辑器

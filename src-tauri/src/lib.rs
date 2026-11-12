@@ -268,14 +268,18 @@ fn credentials(state: &AppState) -> CmdResult<Credentials> {
 #[tauri::command]
 async fn sync_now(state: State<'_, AppState>) -> CmdResult<SyncReport> {
     let dir = state.data_dir.clone();
-    let unsynced = state.config.load()?.unsynced_tabs;
+    let cfg = state.config.load()?;
     let creds = credentials(&state)?;
     let lock = state.sync_lock.clone();
     let store = state.store.clone();
     let secrets = state.secrets.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = lock.lock().unwrap();
-        let mut report = sync::sync(&dir, &unsynced, &creds)?;
+        // 以本机配置为准对齐 git 远端(比如数据目录的 .git 被删掉重建过),避免「已选仓库却同步不了」
+        if let Some(url) = &cfg.remote_url {
+            sync::configure(&dir, url)?;
+        }
+        let mut report = sync::sync(&dir, &cfg.unsynced_tabs, &creds)?;
         if report.key_reset {
             // 本机的钥匙没用过,已换成仓库里的 identity.age:清掉旧钥匙,让用户输入主密钥
             secrets.delete(FILE_KEY)?;

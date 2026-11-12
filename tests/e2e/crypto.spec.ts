@@ -134,3 +134,32 @@ test("加密 tab 的钥匙和本机的对不上:显示锁定原因", async ({ pa
   await expect(page.getByText("这个 tab 用的是另一把主密钥")).toBeVisible();
   await expect(page.getByText("本机的主密钥和仓库里的不一致")).toBeVisible();
 });
+
+test("同步带来了仓库里的主密钥:主密钥区切换成「输入」", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.setItem(
+      "baner-mock-store",
+      JSON.stringify({
+        __crypto: { configured: false, repoHasIdentity: false, remotePass: "correct horse" },
+        __sync: { remoteUrl: null, githubLogin: null, unsyncedTabs: [], hasToken: false },
+      }),
+    );
+  });
+  await page.reload();
+  await openSettings(page);
+  await expect(panel(page).getByLabel(/设置主密钥/)).toBeVisible();
+  // 模拟:这次同步把 identity.age 带到了本机
+  await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem("baner-mock-store") ?? "{}");
+    db.__crypto = { configured: false, repoHasIdentity: true, pass: "correct horse" };
+    localStorage.setItem("baner-mock-store", JSON.stringify(db));
+  });
+  await panel(page).getByRole("button", { name: "用 GitHub 登录" }).click();
+  await panel(page)
+    .getByRole("list", { name: "仓库" })
+    .getByRole("button", { name: "octo/baner-notes" })
+    .click();
+  await expect(page.getByRole("button", { name: /已同步/ })).toBeVisible();
+  await expect(panel(page).getByLabel(/输入主密钥/)).toBeVisible();
+});
