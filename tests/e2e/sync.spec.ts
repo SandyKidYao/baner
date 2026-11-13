@@ -13,6 +13,8 @@ async function loginAndPick(page: Page, repo = "octo/baner-notes") {
 test("U7:未配置时不显示同步符号;用 GitHub 登录并选择仓库后开始同步", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".sync-btn")).toHaveCount(0);
+  // 先停在「等待授权」,免得机器慢时还没点到按钮,模拟的授权就已经完成
+  await page.evaluate(() => localStorage.setItem("baner-mock-github-poll", "pending"));
   await openSettings(page);
   await panel(page).getByRole("button", { name: "用 GitHub 登录" }).click();
 
@@ -20,6 +22,7 @@ test("U7:未配置时不显示同步符号;用 GitHub 登录并选择仓库后�
   await expect(panel(page).getByLabel("验证码", { exact: true })).toHaveText("WDJB-MJHT");
   await panel(page).getByRole("button", { name: "复制验证码并打开 GitHub" }).click();
   expect(await page.evaluate(() => localStorage.getItem("baner-mock-opened"))).toBe('["device"]');
+  await page.evaluate(() => localStorage.removeItem("baner-mock-github-poll")); // 用户在 GitHub 上授权
 
   // 授权完成后列出仓库
   const repos = panel(page).getByRole("list", { name: "仓库" });
