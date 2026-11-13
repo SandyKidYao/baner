@@ -68,9 +68,13 @@ export function useSync({ editor, activeTab, onTabsChanged, onSynced, skipTabs, 
           if (ok === false) again.current = true; // 用户正在输入:稍后再合并一次
         }
       }
-      setState((s) => ({ ...s, phase: "idle", error: null, conflict: r.conflicts.length > 0 }));
+      // 同步途中退出登录:结束后保持「未配置」,不把同步符号重新显示出来
+      const done = configured.current ? "idle" : "off";
+      setState((s) => ({ ...s, phase: done, error: null, conflict: r.conflicts.length > 0 }));
     } catch (e) {
-      setState((s) => ({ ...s, phase: "error", error: describeSyncError(e) }));
+      setState((s) =>
+        configured.current ? { ...s, phase: "error", error: describeSyncError(e) } : { ...s, phase: "off" },
+      );
     } finally {
       running.current = false;
       if (again.current) {
