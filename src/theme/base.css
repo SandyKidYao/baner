@@ -770,6 +770,48 @@ svg {
   right: 4px;
   background: var(--color-rail-accent);
 }
+/* 同步记录 */
+.sync-last {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+}
+.sync-last time {
+  font-weight: var(--weight-strong);
+}
+.sync-log {
+  list-style: none;
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  padding: 0;
+  border-radius: 8px;
+  background: var(--color-surface-2);
+  font-size: var(--text-sm);
+}
+.sync-log li {
+  display: flex;
+  gap: var(--space-3);
+  padding: 6px var(--space-2);
+  border-top: var(--border-width) solid var(--color-divider);
+}
+.sync-log li:first-child {
+  border-top: 0;
+}
+.sync-log time {
+  flex: none;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+.sync-log span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sync-log li.bad span {
+  color: var(--color-danger);
+}
+.sync-more {
+  margin-top: var(--space-1);
+}
 .repo-list {
   list-style: none;
   max-height: 260px;

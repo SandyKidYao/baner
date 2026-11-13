@@ -5,6 +5,7 @@ use baner_core::crypto::{self, FileKey};
 use baner_core::github::{self, Https, Page, Poll, RepoList, Token};
 use baner_core::secrets::SecretStore;
 use baner_core::storage::{Block, Drawing, Store, TabMeta};
+use baner_core::sync::history::{SyncEntry, SyncHistory};
 use baner_core::sync::{self, Author, Credentials, Detect, SyncReport};
 use serde::Serialize;
 use std::path::PathBuf;
@@ -18,6 +19,8 @@ struct AppState {
     data_dir: PathBuf,
     secrets: Arc<SecretStore>,
     config: Arc<ConfigStore>,
+    /// 最近的同步记录(本机,不进仓库)
+    history: SyncHistory,
     /// 同一时间只跑一次同步
     sync_lock: Arc<Mutex<()>>,
     http: Arc<Https>,
@@ -272,6 +275,26 @@ fn credentials(state: &AppState) -> CmdResult<Credentials> {
 /// 免得新设备首次同步时把空的「工作」tab 推进仓库。
 #[tauri::command]
 async fn sync_now(state: State<'_, AppState>, skip: Vec<String>) -> CmdResult<SyncReport> {
+    let result = run_sync(&state, skip).await;
+    let at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64);
+    let entry = match &result {
+        Ok(r) => SyncEntry::ok(at, r),
+        Err(e) => SyncEntry::failed(at, e),
+    };
+    // 记录只是给人看的,写不进去也不影响同步结果
+    let _ = state.history.record(entry);
+    result
+}
+
+/// 最近的同步记录,新的在前。
+#[tauri::command]
+fn sync_history(state: State<AppState>) -> Vec<SyncEntry> {
+    state.history.list()
+}
+
+async fn run_sync(state: &AppState, skip: Vec<String>) -> CmdResult<SyncReport> {
     let dir = state.data_dir.clone();
     let mut cfg = state.config.load()?;
     {
@@ -283,7 +306,7 @@ async fn sync_now(state: State<'_, AppState>, skip: Vec<String>) -> CmdResult<Sy
             }
         }
     }
-    let creds = credentials(&state)?;
+    let creds = credentials(state)?;
     let lock = state.sync_lock.clone();
     let store = state.store.clone();
     let secrets = state.secrets.clone();
@@ -432,6 +455,7 @@ pub fn run() {
                 data_dir: dir,
                 secrets: Arc::new(secrets),
                 config: Arc::new(ConfigStore::new(app_dir.join("config.json"))),
+                history: SyncHistory::new(app_dir.join("sync-log.json")),
                 sync_lock: Arc::new(Mutex::new(())),
                 http: Arc::new(Https::default()),
                 login: Arc::new(Mutex::new(None)),
@@ -469,6 +493,7 @@ pub fn run() {
             sync_use_repo,
             set_tab_synced,
             sync_now,
+            sync_history,
             crypto_status,
             crypto_setup,
             set_tab_encrypted,

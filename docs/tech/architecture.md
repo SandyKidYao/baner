@@ -23,8 +23,9 @@ Baner 是一个本地应用,没有服务器、没有自己的账号体系。同�
 - **GitHub**:唯一的外部系统。用户用 GitHub App「baner-notes」登录(Device Flow),只授权存笔记的仓库;应用通过 HTTPS 和这个 token 列出仓库、fetch 与 push(ADR-0009)。另外,应用定时读取 Baner 自己仓库 Release 上的 `latest.json` 检查新版本,下载签名的更新包替换自己(ADR-0010),这一步不需要登录。
 - **本机密钥文件** `secrets.json`:保存 token 和解开的文件钥匙,权限 0600,必须在数据目录之外(ADR-0008)。
 - **本机配置** `config.json`:远端地址、登录的 GitHub 账号、本机不同步的 tab。不进仓库。
+- **同步记录** `sync-log.json`:最近 50 次同步的时间和结果(失败原因是核心层的错误信息,不含 token),供设置面板显示。连续的同类记录合并计数。不进仓库,读写失败不影响同步。
 
-macOS 上三者都在 `~/Library/Application Support/dev.baner.app/` 下,数据目录是其中的 `data/`。
+macOS 上这几个都在 `~/Library/Application Support/dev.baner.app/` 下,数据目录是其中的 `data/`。
 
 ## 分层
 

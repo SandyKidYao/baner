@@ -89,3 +89,19 @@ export interface UpdateInfo {
   /** Release 说明 */
   notes: string | null;
 }
+
+/** 一条同步记录。连续的「没有变化」或同样的失败合并成一条 */
+export interface SyncEntry {
+  /** 毫秒时间戳;合并的记录是最后一次的时间 */
+  at: number;
+  /** 失败原因(原始信息);成功时为 null */
+  error: string | null;
+  committed: boolean;
+  pushed: boolean;
+  /** 远端带来变化的 tab id */
+  changedTabs: string[];
+  /** 写入冲突标记的块数 */
+  conflicts: number;
+  /** 合并了几次 */
+  count: number;
+}

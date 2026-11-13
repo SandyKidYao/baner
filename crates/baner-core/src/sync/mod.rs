@@ -475,5 +475,7 @@ pub fn sync(dir: &Path, unsynced: &[String], creds: &Credentials) -> Result<Sync
     Err(Error::Git("push rejected repeatedly".into()))
 }
 
+pub mod history;
+
 #[cfg(test)]
 mod tests;

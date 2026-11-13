@@ -1,6 +1,6 @@
 // 浏览器内测试用:用内存(加 localStorage)模拟核心层命令,不需要启动 Tauri。
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
-import type { Block, Drawing, TabMeta } from "./types";
+import type { Block, Drawing, SyncEntry, TabMeta } from "./types";
 
 const KEY = "baner-mock-store";
 type MockSync = {
@@ -29,6 +29,8 @@ type Db = Record<string, Block[]> & {
     /** 这些 tab 是用另一把钥匙加密的 */
     mismatch?: string[];
   };
+  /** 同步记录,新的在前 */
+  __history?: SyncEntry[];
   /** 图块内容,键为 "<tab>/<块id>" */
   __drawings?: Record<string, Drawing>;
 };
@@ -46,6 +48,23 @@ function write(db: Db) {
   } catch {
     /* 测试环境无存储时忽略 */
   }
+}
+
+/** 与核心层 SyncHistory 相同:新的在前,连续的「没有变化」或同样的失败合并,最多 50 条 */
+function recordSync(e: Omit<SyncEntry, "at" | "count">) {
+  const db = read();
+  const list = db.__history ?? [];
+  const noop = (x: Omit<SyncEntry, "at" | "count">) =>
+    !x.error && !x.committed && !x.pushed && x.changedTabs.length === 0 && x.conflicts === 0;
+  const last = list[0];
+  if (last && ((noop(last) && noop(e)) || (e.error && last.error === e.error))) {
+    last.at = Date.now();
+    last.count += 1;
+  } else {
+    list.unshift({ ...e, at: Date.now(), count: 1 });
+  }
+  db.__history = list.slice(0, 50);
+  write(db);
 }
 
 export function installMockIpc() {
@@ -211,16 +230,22 @@ export function installMockIpc() {
           localStorage.removeItem("baner-mock-sync-incoming");
           changedTabs = x.tabs.map((t) => t.id);
         }
+        // 测试可设置 localStorage["baner-mock-sync-noop"] 模拟没有任何变化的同步
+        const noop = !!localStorage.getItem("baner-mock-sync-noop");
+        const report = { committed: !noop, changedTabs, conflicts: [], pushed: !noop, keyReset };
         return new Promise((resolve, reject) =>
-          setTimeout(
-            () =>
+          setTimeout(() => {
+            recordSync(
               err
-                ? reject(err)
-                : resolve({ committed: true, changedTabs, conflicts: [], pushed: true, keyReset }),
-            150,
-          ),
+                ? { error: err, committed: false, pushed: false, changedTabs: [], conflicts: 0 }
+                : { ...report, error: null, conflicts: 0 },
+            );
+            err ? reject(err) : resolve(report);
+          }, 150),
         );
       }
+      case "sync_history":
+        return db.__history ?? [];
       case "crypto_status":
         return {
           configured: !!db.__crypto?.configured,

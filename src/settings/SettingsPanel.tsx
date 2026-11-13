@@ -3,6 +3,8 @@ import { describeCryptoError } from "../crypto/errors";
 import { MasterKey } from "../crypto/MasterKey";
 import { type CryptoStatus, type SyncStatus, setTabEncrypted, setTabSynced, type TabMeta } from "../ipc";
 import { CrossIcon, LockIcon, SyncIcon } from "../rail/icons";
+import { SyncHistory } from "../sync/SyncHistory";
+import type { SyncPhase } from "../sync/useSync";
 import { UpdateSection } from "../update/UpdateSection";
 import type { UpdateApi } from "../update/useUpdate";
 import { GithubSync } from "./GithubSync";
@@ -10,6 +12,8 @@ import { GithubSync } from "./GithubSync";
 interface Props {
   tabs: TabMeta[];
   status: SyncStatus | null;
+  /** 同步状态:每次同步结束后刷新同步记录 */
+  syncPhase: SyncPhase;
   /** 登录、选仓库、退出登录之后调用,由调用方立即同步 */
   onSaved: (s: SyncStatus) => void;
   crypto: CryptoStatus | null;
@@ -24,10 +28,11 @@ interface Props {
   onClose: () => void;
 }
 
-/** 同步与加密配置:GitHub 登录与仓库 → 本机主密钥 → 每个 tab 的开关;底部是版本与更新。 */
+/** 同步与加密配置:GitHub 登录与仓库 → 同步记录 → 本机主密钥 → 每个 tab 的开关;底部是版本与更新。 */
 export function SettingsPanel({
   tabs,
   status,
+  syncPhase,
   onSaved,
   crypto,
   onCryptoChanged,
@@ -68,6 +73,7 @@ export function SettingsPanel({
       </header>
 
       <GithubSync status={status} onChanged={onSaved} />
+      <SyncHistory tabs={tabs} phase={syncPhase} configured={!!status?.config.remoteUrl && status.hasToken} />
 
       <h3 className="sub">
         <LockIcon /> 主密钥

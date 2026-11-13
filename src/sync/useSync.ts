@@ -11,6 +11,8 @@ export interface SyncState {
   conflict: boolean;
   error: string | null;
   status: SyncStatus | null;
+  /** 本次运行中最近一次同步成功的时间(毫秒) */
+  lastSyncedAt: number | null;
 }
 
 const IDLE_MS = 10_000; // 停止编辑后多久同步
@@ -33,7 +35,13 @@ interface Options {
 const isConfigured = (s: SyncStatus) => !!s.config.remoteUrl && s.hasToken;
 
 export function useSync({ editor, activeTab, onTabsChanged, onSynced, skipTabs, ready }: Options) {
-  const [state, setState] = useState<SyncState>({ phase: "off", conflict: false, error: null, status: null });
+  const [state, setState] = useState<SyncState>({
+    phase: "off",
+    conflict: false,
+    error: null,
+    status: null,
+    lastSyncedAt: null,
+  });
   const running = useRef(false);
   const again = useRef(false);
   const lastAt = useRef(0);
@@ -70,7 +78,13 @@ export function useSync({ editor, activeTab, onTabsChanged, onSynced, skipTabs, 
       }
       // 同步途中退出登录:结束后保持「未配置」,不把同步符号重新显示出来
       const done = configured.current ? "idle" : "off";
-      setState((s) => ({ ...s, phase: done, error: null, conflict: r.conflicts.length > 0 }));
+      setState((s) => ({
+        ...s,
+        phase: done,
+        error: null,
+        conflict: r.conflicts.length > 0,
+        lastSyncedAt: lastAt.current,
+      }));
     } catch (e) {
       setState((s) =>
         configured.current ? { ...s, phase: "error", error: describeSyncError(e) } : { ...s, phase: "off" },

@@ -10,6 +10,7 @@ import type {
   LoginPoll,
   RepoList,
   SyncConfig,
+  SyncEntry,
   SyncReport,
   SyncStatus,
   TabMeta,
@@ -26,6 +27,7 @@ export type {
   Repo,
   RepoList,
   SyncConfig,
+  SyncEntry,
   SyncReport,
   SyncStatus,
   TabMeta,
@@ -55,6 +57,8 @@ export const setTabSynced = (id: string, synced: boolean) =>
   invoke<SyncConfig>("set_tab_synced", { id, synced });
 /** skip:这次临时跳过的 tab(只有本机确实没有内容时核心层才会跳过) */
 export const syncNow = (skip: string[] = []) => invoke<SyncReport>("sync_now", { skip });
+/** 最近的同步记录,新的在前 */
+export const syncHistory = () => invoke<SyncEntry[]>("sync_history");
 export const cryptoStatus = () => invoke<CryptoStatus>("crypto_status");
 export const cryptoSetup = (passphrase: string) => invoke<CryptoStatus>("crypto_setup", { passphrase });
 export const setTabEncrypted = (id: string, on: boolean) => invoke<void>("set_tab_encrypted", { id, on });

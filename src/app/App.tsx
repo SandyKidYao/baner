@@ -200,6 +200,7 @@ export default function App() {
     <SettingsPanel
       tabs={tabs}
       status={sync.state.status}
+      syncPhase={sync.state.phase}
       onSaved={sync.onConfigured}
       crypto={crypto}
       onCryptoStatus={setCrypto}

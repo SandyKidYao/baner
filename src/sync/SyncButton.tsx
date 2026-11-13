@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AlertIcon, CrossIcon, SyncIcon } from "../rail/icons";
+import { formatTime } from "./time";
 import type { SyncState } from "./useSync";
 
 interface Props {
@@ -11,14 +12,15 @@ interface Props {
 export function SyncButton({ state, onSync }: Props) {
   const [open, setOpen] = useState(false);
   if (state.phase === "off") return null;
+  const at = state.lastSyncedAt ? ` ${formatTime(state.lastSyncedAt)}` : "";
   const label =
     state.phase === "syncing"
       ? "同步中"
       : state.phase === "error"
         ? `同步失败:${state.error}`
         : state.conflict
-          ? "已同步,有冲突的块"
-          : "已同步,点击立即同步";
+          ? `已同步${at},有冲突的块`
+          : `已同步${at},点击立即同步`;
   return (
     <div className="sync">
       <button

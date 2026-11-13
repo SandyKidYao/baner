@@ -245,3 +245,43 @@ test("已登录的新设备启动时自动同步:也会跳过刚建好的占位 
   expect(ph).toBeTruthy();
   expect(await page.evaluate(() => localStorage.getItem("baner-mock-sync-skip"))).toBe(JSON.stringify([ph]));
 });
+
+test("同步记录:显示上次同步的时间和每次同步的结果;同步按钮提示上次同步时间", async ({ page }) => {
+  await page.goto("/");
+  await openSettings(page);
+  await expect(panel(page).getByRole("heading", { name: "同步记录" })).toHaveCount(0); // 没配置时不显示
+  await panel(page).getByRole("button", { name: "用 GitHub 登录" }).click();
+  await panel(page)
+    .getByRole("list", { name: "仓库" })
+    .getByRole("button", { name: "octo/baner-notes" })
+    .click();
+
+  const log = panel(page).getByRole("list", { name: "同步记录" });
+  await expect(log.getByRole("listitem")).toHaveText([/^\d\d:\d\d✓ ↑ 推送$/]);
+  await expect(panel(page).locator(".sync-last")).toHaveText(/^上次同步 \d\d:\d\d$/);
+  await expect(page.getByRole("button", { name: /^已同步 \d\d:\d\d,点击立即同步$/ })).toBeVisible();
+
+  // 连续的「没有变化」合并成一条
+  await page.evaluate(() => localStorage.setItem("baner-mock-sync-noop", "1"));
+  for (let i = 0; i < 2; i++) {
+    await page.getByRole("button", { name: /已同步/ }).click();
+    await expect(log.getByRole("listitem").first()).toContainText(i === 0 ? "✓ 无变化" : "✓ 无变化 ×2");
+  }
+
+  // 失败的记录显示原因;「上次同步」仍是最近一次成功的时间
+  await page.evaluate(() =>
+    localStorage.setItem("baner-mock-sync-error", "git: unexpected http status code: 401"),
+  );
+  await page.getByRole("button", { name: /已同步/ }).click();
+  await expect(log.getByRole("listitem").first()).toContainText("✕ GitHub 授权失效,请重新登录");
+  await expect(log.getByRole("listitem")).toHaveCount(3);
+  await expect(panel(page).locator(".sync-last")).toHaveText(/^上次同步 \d\d:\d\d$/);
+});
+
+test("同步记录:远端带来的变化显示 tab 名", async ({ page }) => {
+  await page.goto("/");
+  await configureWithIncoming(page);
+  await expect(
+    panel(page).getByRole("list", { name: "同步记录" }).getByRole("listitem").first(),
+  ).toContainText("✓ ↓ 需求池 · ↑ 推送");
+});
