@@ -9,8 +9,9 @@ use baner_core::sync::{self, Author, Credentials, Detect, SyncReport};
 use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tauri::{Manager, State};
+use tauri::{Manager, RunEvent, State, WindowEvent};
 use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_updater::{Update, UpdaterExt};
 
 struct AppState {
     store: Arc<Mutex<Store>>,
@@ -22,6 +23,8 @@ struct AppState {
     http: Arc<Https>,
     /// 进行中的 GitHub 登录:device code 只留在这里,不交给界面
     login: Arc<Mutex<Option<String>>>,
+    /// 检查到、还没安装的新版本
+    update: Mutex<Option<Update>>,
 }
 
 const TOKEN: &str = "git-token";
@@ -346,6 +349,58 @@ fn set_tab_encrypted(state: State<AppState>, id: String, on: bool) -> CmdResult<
     state.store.lock().unwrap().set_tab_encrypted(&id, on)
 }
 
+/// 界面拿到的新版本信息
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateInfo {
+    version: String,
+    current_version: String,
+    notes: Option<String>,
+}
+
+fn update_err(e: impl std::fmt::Display) -> baner_core::Error {
+    baner_core::Error::Update(e.to_string())
+}
+
+/// 到 GitHub Release 上的 latest.json 检查新版本(ADR-0010)。没有新版本时返回 None。
+#[tauri::command]
+async fn update_check(app: tauri::AppHandle) -> CmdResult<Option<UpdateInfo>> {
+    let update = app
+        .updater()
+        .map_err(update_err)?
+        .check()
+        .await
+        .map_err(update_err)?;
+    let info = update.as_ref().map(|u| UpdateInfo {
+        version: u.version.clone(),
+        current_version: u.current_version.clone(),
+        notes: u.body.clone(),
+    });
+    *app.state::<AppState>().update.lock().unwrap() = update;
+    Ok(info)
+}
+
+/// 下载并安装 `update_check` 找到的新版本(校验签名后替换 .app),然后重启。
+#[tauri::command]
+async fn update_install(app: tauri::AppHandle) -> CmdResult<()> {
+    if cfg!(debug_assertions) {
+        // 开发版不在 .app 里运行,替换不了
+        return Err(update_err("not available in dev builds"));
+    }
+    let update = app
+        .state::<AppState>()
+        .update
+        .lock()
+        .unwrap()
+        .take()
+        .ok_or_else(|| update_err("no update available"))?;
+    update
+        .download_and_install(|_, _| {}, || {})
+        .await
+        .map_err(update_err)?;
+    app.restart()
+}
+
 /// 界面内容就绪后调用:再显示窗口,避免空白闪烁。
 #[tauri::command]
 fn app_ready(window: tauri::WebviewWindow) {
@@ -357,6 +412,7 @@ fn app_ready(window: tauri::WebviewWindow) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             // BANER_APP_DIR / BANER_DATA_DIR 可覆盖默认位置(例如在一台机器上模拟两台设备)
             let app_dir: PathBuf = std::env::var_os("BANER_APP_DIR")
@@ -379,8 +435,21 @@ pub fn run() {
                 sync_lock: Arc::new(Mutex::new(())),
                 http: Arc::new(Https::default()),
                 login: Arc::new(Mutex::new(None)),
+                update: Mutex::new(None),
             });
             Ok(())
+        })
+        // macOS:点关闭按钮(或 ⌘W)不关窗口,而是隐藏整个应用(同 ⌘H),应用留在 Dock;⌘Q 才退出。
+        // 不用 window.hide():窗口被隐藏后再显示,WebView 的辅助功能树会失效,
+        // 读屏和自动化都点不到界面里的控件。
+        .on_window_event(|window, event| {
+            #[cfg(target_os = "macos")]
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.app_handle().hide();
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (window, event);
         })
         .invoke_handler(tauri::generate_handler![
             load_blocks,
@@ -403,8 +472,24 @@ pub fn run() {
             crypto_status,
             crypto_setup,
             set_tab_encrypted,
+            update_check,
+            update_install,
             app_ready
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // 关闭后点 Dock 图标:恢复应用和窗口
+            #[cfg(target_os = "macos")]
+            if let RunEvent::Reopen { .. } = event {
+                let _ = app.show();
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.unminimize();
+                    let _ = w.show();
+                    let _ = w.set_focus();
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
 }

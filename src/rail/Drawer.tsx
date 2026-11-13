@@ -9,13 +9,24 @@ interface Props {
   onSelect: (id: string) => void;
   onCreate: () => void;
   onSettings: () => void;
+  /** 有新版本:「同步与加密」旁显示小圆点 */
+  updateReady?: boolean;
   onClose: () => void;
   /** 右键或长按打开 tab 菜单 */
   onMenu: (tab: TabMeta, x: number, y: number, opener: HTMLElement) => void;
 }
 
 /** 手机布局:轨道收进左侧抽屉。点遮罩或按 Esc 关闭,关闭后焦点回到 ≡。 */
-export function Drawer({ tabs, activeId, onSelect, onCreate, onSettings, onClose, onMenu }: Props) {
+export function Drawer({
+  tabs,
+  activeId,
+  onSelect,
+  onCreate,
+  onSettings,
+  updateReady,
+  onClose,
+  onMenu,
+}: Props) {
   const nav = useRef<HTMLElement>(null);
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
@@ -79,6 +90,7 @@ export function Drawer({ tabs, activeId, onSelect, onCreate, onSettings, onClose
             <GearIcon />
           </span>
           <span className="row-name">同步与加密</span>
+          {updateReady && <span className="upd-dot" role="img" aria-label="有新版本" />}
         </button>
       </nav>
     </div>

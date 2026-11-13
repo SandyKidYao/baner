@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { copyText } from "../app/clipboard";
 import {
   githubLoginPoll,
   githubLoginStart,
@@ -10,7 +11,7 @@ import {
   type SyncStatus,
   syncUseRepo,
 } from "../ipc";
-import { CheckIcon, LockIcon, PlusIcon, SyncIcon } from "../rail/icons";
+import { CheckIcon, CopyIcon, LockIcon, PlusIcon, SyncIcon } from "../rail/icons";
 import { describeGithubError } from "../sync/errors";
 
 interface Props {
@@ -109,6 +110,7 @@ type LoginState =
 function Login({ onDone }: { onDone: (s: SyncStatus) => void }) {
   const [st, setSt] = useState<LoginState>({ kind: "idle" });
   const [opened, setOpened] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const done = useRef(onDone);
   done.current = onDone;
@@ -126,6 +128,11 @@ function Login({ onDone }: { onDone: (s: SyncStatus) => void }) {
   };
 
   const code = st.kind === "waiting" ? st.code : null;
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1500);
+    return () => clearTimeout(t);
+  }, [copied]);
   useEffect(() => {
     if (!code) return;
     let stopped = false;
@@ -156,8 +163,9 @@ function Login({ onDone }: { onDone: (s: SyncStatus) => void }) {
   }, [code]);
 
   if (code) {
+    const copy = async () => setCopied(await copyText(code.userCode));
     const open = () => {
-      navigator.clipboard?.writeText(code.userCode).catch(() => {});
+      copyText(code.userCode);
       githubOpen("device").catch((e) => setErr(describeGithubError(e)));
       setOpened(true);
     };
@@ -165,9 +173,20 @@ function Login({ onDone }: { onDone: (s: SyncStatus) => void }) {
       <div className="fields">
         <span className="field">
           <span>在 GitHub 页面输入验证码</span>
-          <output className="device-code" aria-label="验证码">
-            {code.userCode}
-          </output>
+          <span className="device-code-row">
+            <output className="device-code" aria-label="验证码">
+              {code.userCode}
+            </output>
+            <button
+              type="button"
+              className={copied ? "sym device-copy done" : "sym device-copy"}
+              aria-label="复制验证码"
+              title={copied ? "已复制" : "复制验证码"}
+              onClick={copy}
+            >
+              {copied ? <CheckIcon /> : <CopyIcon />}
+            </button>
+          </span>
         </span>
         <button type="button" className="primary" onClick={open}>
           {opened ? "重新打开 GitHub" : "复制验证码并打开 GitHub"}

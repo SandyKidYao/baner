@@ -14,6 +14,7 @@ import { clearPlaceholder, placeholderTab, useTabs } from "../rail/useTabs";
 import { SettingsPanel } from "../settings/SettingsPanel";
 import { SyncButton } from "../sync/SyncButton";
 import { useSync } from "../sync/useSync";
+import { useUpdate } from "../update/useUpdate";
 import { useNarrow } from "./useMedia";
 
 const MD_MODE = "baner.mdMode"; // 本机偏好:所见 / 源码
@@ -55,6 +56,8 @@ export default function App() {
     },
   });
   tabsEdited.current = sync.onSaved; // 新建、改名、删除、排序后也安排一次同步
+  const appUpdate = useUpdate(async () => editorApi.current?.flush());
+  const updateReady = appUpdate.state.info !== null;
   const [settings, setSettings] = useState(false);
   const [epoch, setEpoch] = useState(0); // 加密状态变化后重建编辑器
   useEffect(reloadCrypto, [reloadCrypto]);
@@ -209,6 +212,7 @@ export default function App() {
         await sync.refreshStatus();
         sync.onSaved();
       }}
+      update={appUpdate}
       onClose={() => setSettings(false)}
     />
   );
@@ -222,6 +226,7 @@ export default function App() {
           onSelect={selectTab}
           onCreate={newTab}
           onSettings={() => setSettings(true)}
+          updateReady={updateReady}
           onClose={closeDrawer}
           onMenu={openMenu}
         />
@@ -299,12 +304,13 @@ export default function App() {
             <button
               type="button"
               className={settings ? "ib on" : "ib"}
-              aria-label="同步与加密"
+              aria-label={updateReady ? "同步与加密(有新版本)" : "同步与加密"}
               aria-pressed={settings}
-              title={`同步与加密 ${MOD},`}
+              title={updateReady ? `同步与加密 · 有新版本 ${MOD},` : `同步与加密 ${MOD},`}
               onClick={() => setSettings(!settings)}
             >
               <GearIcon />
+              {updateReady && <span className="upd-dot" aria-hidden="true" />}
             </button>
           </div>
         </footer>

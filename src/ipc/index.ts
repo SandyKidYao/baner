@@ -1,4 +1,5 @@
 // 界面层调用核心层的唯一入口。其他模块不要直接调用 invoke。
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import type {
   Block,
@@ -12,6 +13,7 @@ import type {
   SyncReport,
   SyncStatus,
   TabMeta,
+  UpdateInfo,
 } from "./types";
 
 export type {
@@ -27,6 +29,7 @@ export type {
   SyncReport,
   SyncStatus,
   TabMeta,
+  UpdateInfo,
 } from "./types";
 
 export const loadBlocks = (tab: string) => invoke<Block[]>("load_blocks", { tab });
@@ -59,3 +62,9 @@ export const isLocked = (e: unknown) => /^locked/.test(String(e));
 /** 内容是用另一把钥匙加密的(本机的主密钥和仓库里的不一致) */
 export const isKeyMismatch = (e: unknown) => /^locked: key mismatch/.test(String(e));
 export const appReady = () => invoke<void>("app_ready");
+/** 本机应用的版本号(tauri.conf.json 的 version) */
+export const appVersion = () => getVersion();
+/** 检查 GitHub Release 上有没有新版本;没有时为 null */
+export const updateCheck = () => invoke<UpdateInfo | null>("update_check");
+/** 下载并安装 updateCheck 找到的新版本,随后应用重启 */
+export const updateInstall = () => invoke<void>("update_install");

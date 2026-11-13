@@ -17,7 +17,7 @@ test("U7:未配置时不显示同步符号;用 GitHub 登录并选择仓库后�
   await panel(page).getByRole("button", { name: "用 GitHub 登录" }).click();
 
   // 显示验证码;点按钮打开 GitHub 的验证码页面
-  await expect(panel(page).getByLabel("验证码")).toHaveText("WDJB-MJHT");
+  await expect(panel(page).getByLabel("验证码", { exact: true })).toHaveText("WDJB-MJHT");
   await panel(page).getByRole("button", { name: "复制验证码并打开 GitHub" }).click();
   expect(await page.evaluate(() => localStorage.getItem("baner-mock-opened"))).toBe('["device"]');
 
@@ -74,6 +74,19 @@ test("U7:还没授权仓库时引导去安装 App,也可以新建私有仓库", 
   await expect(panel(page).getByRole("list", { name: "仓库" }).getByRole("button")).toHaveText([
     "octo/baner-notes",
   ]);
+});
+
+test("U7:验证码旁的按钮复制验证码", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("baner-mock-github-poll", "pending"));
+  await openSettings(page);
+  await panel(page).getByRole("button", { name: "用 GitHub 登录" }).click();
+  const copy = panel(page).getByRole("button", { name: "复制验证码", exact: true });
+  await copy.click();
+  await expect(copy).toHaveAttribute("title", "已复制"); // 图标变成 ✓
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("WDJB-MJHT");
+  await expect(copy).toHaveAttribute("title", "复制验证码"); // 稍后恢复
 });
 
 test("U7:验证码过期后可以重新获取", async ({ page }) => {

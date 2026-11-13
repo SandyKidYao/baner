@@ -23,6 +23,7 @@ import { Decoration, type DecorationSet, EditorView, keymap, WidgetType } from "
 import type { SyntaxNode } from "@lezer/common";
 import { highlightTree, tags as t } from "@lezer/highlight";
 import type { BlockParser, Element, MarkdownConfig } from "@lezer/markdown";
+import { copyText } from "../app/clipboard";
 import { blocksField, curNo, currentBlock, drawEditingField } from "./editor";
 
 const CTRL = 31; // 分隔行与图块占位行以 \u001f 开头
@@ -102,24 +103,6 @@ const codeStyle = HighlightStyle.define([
   { tag: t.invalid, color: "var(--color-danger)" },
 ]);
 
-async function copy(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    // 退路:某些 WebView 不允许 clipboard API
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    const ok = document.execCommand("copy");
-    ta.remove();
-    return ok;
-  }
-}
-
 // 图标与 rail/icons.tsx 同一风格:线宽 2、直角线头
 const svg = (d: string) =>
   `<svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" aria-hidden="true"><path d="${d}"/></svg>`;
@@ -137,7 +120,7 @@ function copyButton(getText: () => string): HTMLButtonElement {
   btn.addEventListener("click", async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    const ok = await copy(getText());
+    const ok = await copyText(getText());
     if (!ok) {
       btn.title = "复制失败";
       return;

@@ -15,6 +15,9 @@ pub enum Error {
     /// GitHub 登录与接口;内容不含 token
     #[error("github: {0}")]
     Github(String),
+    /// 检查或安装新版本(GitHub Release)
+    #[error("update: {0}")]
+    Update(String),
     #[error("crypto: {0}")]
     Crypto(String),
     #[error("wrong master key")]

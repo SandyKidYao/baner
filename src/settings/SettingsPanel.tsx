@@ -3,6 +3,8 @@ import { describeCryptoError } from "../crypto/errors";
 import { MasterKey } from "../crypto/MasterKey";
 import { type CryptoStatus, type SyncStatus, setTabEncrypted, setTabSynced, type TabMeta } from "../ipc";
 import { CrossIcon, LockIcon, SyncIcon } from "../rail/icons";
+import { UpdateSection } from "../update/UpdateSection";
+import type { UpdateApi } from "../update/useUpdate";
 import { GithubSync } from "./GithubSync";
 
 interface Props {
@@ -18,10 +20,11 @@ interface Props {
   onTabsChanged: () => void;
   /** 某个 tab 的同步开关变了:重新读取同步状态 */
   onSyncChanged: () => Promise<unknown>;
+  update: UpdateApi;
   onClose: () => void;
 }
 
-/** 同步与加密配置:GitHub 登录与仓库 → 本机主密钥 → 每个 tab 的开关。 */
+/** 同步与加密配置:GitHub 登录与仓库 → 本机主密钥 → 每个 tab 的开关;底部是版本与更新。 */
 export function SettingsPanel({
   tabs,
   status,
@@ -31,6 +34,7 @@ export function SettingsPanel({
   onCryptoStatus,
   onTabsChanged,
   onSyncChanged,
+  update,
   onClose,
 }: Props) {
   const unsynced = status?.config.unsyncedTabs ?? [];
@@ -116,6 +120,8 @@ export function SettingsPanel({
         不同步的 tab 只留在本机;已经同步过的 tab 关闭同步后,会从仓库里移除。加密 tab
         的内容和名称在仓库里都是密文。
       </p>
+
+      <UpdateSection update={update} />
     </section>
   );
 }

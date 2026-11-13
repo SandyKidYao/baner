@@ -26,6 +26,7 @@ scripts/release.sh 0.2.0     # 发版:改版本号、提交、打 tag;推 tag �
 
 - 隐藏窗口里的 WebView 不执行 `requestAnimationFrame`,「内容就绪再显示窗口」用 `setTimeout`。
 - 真实应用的手动验证可用 agent-desktop:CodeMirror 编辑区用 `set-value` 输入(`type` 无效)。
+- macOS 上关闭窗口要隐藏应用(`app.hide()`),不要 `window.hide()`:窗口隐藏再显示后,WebView 的辅助功能树失效,agent-desktop 和读屏都点不到控件。
 
 ## 什么时候读什么
 

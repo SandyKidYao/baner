@@ -15,3 +15,4 @@
 | [0007](0007-ui-framework-react.md) | 界面框架:React | accepted |
 | [0008](0008-secrets-local-file.md) | 密钥存成本机私有文件(0600,在数据目录之外) | accepted |
 | [0009](0009-github-app-device-flow.md) | 用 GitHub App 的 Device Flow 登录,取代手动填写 token | accepted |
+| [0010](0010-auto-update-tauri-updater.md) | 自动更新:Tauri updater 插件,从 GitHub Release 取签名的更新包 | accepted |

@@ -17,7 +17,7 @@
 
 ## 下载
 
-[下载最新版 `.dmg`](https://github.com/SandyKidYao/baner/releases/latest/download/Baner_macOS_universal.dmg)(macOS 11+,Apple 芯片与 Intel 通用),把 Baner 拖进「应用程序」;历史版本和更新说明在 [Releases](https://github.com/SandyKidYao/baner/releases)。这个版本是 ad-hoc 签名、没有公证,第一次打开时在「系统设置 → 隐私与安全性」里点「仍要打开」,或执行 `xattr -dr com.apple.quarantine /Applications/Baner.app`。
+[下载最新版 `.dmg`](https://github.com/SandyKidYao/baner/releases/latest/download/Baner_macOS_universal.dmg)(macOS 11+,Apple 芯片与 Intel 通用),把 Baner 拖进「应用程序」;历史版本和更新说明在 [Releases](https://github.com/SandyKidYao/baner/releases)。0.1.1 起应用会自动检查新版本,在「⚙ → 版本」里一键更新并重启。这个版本是 ad-hoc 签名、没有公证,第一次打开时在「系统设置 → 隐私与安全性」里点「仍要打开」,或执行 `xattr -dr com.apple.quarantine /Applications/Baner.app`。
 
 ## 从源码跑起来(macOS)
 

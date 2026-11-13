@@ -736,6 +736,40 @@ svg {
   text-align: center;
   user-select: all;
 }
+.device-code-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-1);
+}
+.device-code-row .device-code {
+  flex: 1;
+  min-width: 0;
+}
+.device-copy {
+  flex: none;
+  width: 40px;
+  height: auto;
+}
+.device-copy.done {
+  color: var(--color-success);
+}
+.update-new {
+  margin: 0;
+  font-weight: var(--weight-strong);
+}
+/* 有新版本:⚙ 右上角、抽屉里「同步与加密」后面的小圆点 */
+.upd-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-primary);
+}
+.keys .upd-dot {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  background: var(--color-rail-accent);
+}
 .repo-list {
   list-style: none;
   max-height: 260px;

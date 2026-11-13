@@ -20,7 +20,7 @@ Baner 是一个本地应用,没有服务器、没有自己的账号体系。同�
 
 ## 系统上下文
 
-- **GitHub**:唯一的外部系统。用户用 GitHub App「baner-notes」登录(Device Flow),只授权存笔记的仓库;应用通过 HTTPS 和这个 token 列出仓库、fetch 与 push(ADR-0009)。
+- **GitHub**:唯一的外部系统。用户用 GitHub App「baner-notes」登录(Device Flow),只授权存笔记的仓库;应用通过 HTTPS 和这个 token 列出仓库、fetch 与 push(ADR-0009)。另外,应用定时读取 Baner 自己仓库 Release 上的 `latest.json` 检查新版本,下载签名的更新包替换自己(ADR-0010),这一步不需要登录。
 - **本机密钥文件** `secrets.json`:保存 token 和解开的文件钥匙,权限 0600,必须在数据目录之外(ADR-0008)。
 - **本机配置** `config.json`:远端地址、登录的 GitHub 账号、本机不同步的 tab。不进仓库。
 
@@ -81,6 +81,8 @@ macOS 上三者都在 `~/Library/Application Support/dev.baner.app/` 下,数据�
 
 - 只在本地运行,没有服务端。
 - macOS:本机构建 `.app`,使用 ad-hoc 签名,不公证(Apple 开发者账号要年费,与 D7 冲突)。安装脚本是 `scripts/install-app.sh`。
+- 推送版本 tag 后 CI 构建 universal 版发到 GitHub Release,附带签名的更新包和 `latest.json`;装了 0.1.1 及以后版本的应用在应用内更新(ADR-0010)。
+- macOS 上点窗口的关闭按钮不退出,而是隐藏整个应用(同 ⌘H),应用留在 Dock 里继续运行(同步照常);点 Dock 图标恢复,⌘Q 才退出。不用隐藏窗口的做法:窗口隐藏再显示后,WebView 的辅助功能树会失效。
 
 ## 为什么是这个形态
 

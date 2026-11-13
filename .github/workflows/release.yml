@@ -1,5 +1,7 @@
 # 推送 v* tag 时:跑全部检查 → 构建 macOS universal 版(Apple 芯片 + Intel)→ 发布 GitHub Release。
 # 发版流程见 scripts/release.sh。构建是 ad-hoc 签名、不公证,和本机 scripts/install-app.sh 一致。
+# 同时生成应用内自动更新用的签名更新包和 latest.json(ADR-0010),签名私钥放在仓库 secret
+# TAURI_SIGNING_PRIVATE_KEY(无密码时 TAURI_SIGNING_PRIVATE_KEY_PASSWORD 可以不设)。
 name: Release
 
 on:
@@ -77,8 +79,17 @@ jobs:
 
       - run: npm ci
 
-      - name: 构建 universal .app 与 .dmg
-        run: npm run tauri build -- --target universal-apple-darwin --bundles app,dmg
+      - name: 构建 universal .app、.dmg 与签名的更新包
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # 私钥没有密码时也要设成空字符串,否则构建时会等待输入密码
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          [[ -n "$TAURI_SIGNING_PRIVATE_KEY" ]] \
+            || { echo "::error::缺少仓库 secret TAURI_SIGNING_PRIVATE_KEY(见 docs/dev/conventions.md 的「发版」)"; exit 1; }
+          # 本机构建不带更新包(不需要私钥),只在 CI 打开
+          npm run tauri build -- --target universal-apple-darwin --bundles app,dmg \
+            --config '{"bundle":{"createUpdaterArtifacts":true}}'
 
       - name: 整理产物
         run: |
@@ -89,6 +100,23 @@ jobs:
           # 文件名不带版本号,产品页用 releases/latest/download/<文件名> 直接下载最新版
           cp "$bundle"/dmg/*.dmg out/Baner_macOS_universal.dmg
           ditto -c -k --keepParent "$bundle/macos/Baner.app" out/Baner_macOS_universal.app.zip
+          # 自动更新:更新包 + latest.json。universal 包两种芯片共用;已发出去的应用固定从
+          # releases/latest/download/latest.json 检查,所以 latest.json 这个文件名不能改
+          cp "$bundle/macos/Baner.app.tar.gz" out/Baner_macOS_universal.app.tar.gz
+          SIG="$(cat "$bundle/macos/Baner.app.tar.gz.sig")" \
+          DL_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/Baner_macOS_universal.app.tar.gz" \
+          node -e '
+            const { SIG, DL_URL, TAG, GITHUB_REPOSITORY } = process.env;
+            const p = { signature: SIG, url: DL_URL };
+            const m = {
+              version: TAG.replace(/^v/, ""),
+              notes: `https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}`,
+              pub_date: new Date().toISOString(),
+              platforms: { "darwin-aarch64": p, "darwin-x86_64": p },
+            };
+            require("fs").writeFileSync("out/latest.json", JSON.stringify(m, null, 2) + "\n");
+          '
+          cat out/latest.json
           (cd out && shasum -a 256 * > SHA256SUMS.txt)
           ls -lh out
 
@@ -99,7 +127,7 @@ jobs:
           cat > notes.md <<'EOF'
           ## 安装(macOS 11+,Apple 芯片与 Intel 通用)
 
-          下载 `.dmg`,把 Baner 拖进「应用程序」。
+          下载 `.dmg`,把 Baner 拖进「应用程序」。已经装了 0.1.1 及以后版本的,在应用里「⚙ → 版本 → 更新并重启」即可,不用重新下载。
 
           这个版本是 ad-hoc 签名、没有经过 Apple 公证,第一次打开会被系统拦下。任选一种放行:
 

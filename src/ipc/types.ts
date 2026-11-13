@@ -81,3 +81,11 @@ export interface RepoList {
 
 /** 应用能替用户打开的 GitHub 页面 */
 export type GithubPage = "device" | "install" | "newRepo";
+
+/** GitHub Release 上比本机新的版本 */
+export interface UpdateInfo {
+  version: string;
+  currentVersion: string;
+  /** Release 说明 */
+  notes: string | null;
+}

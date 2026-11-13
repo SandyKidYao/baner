@@ -251,6 +251,23 @@ export function installMockIpc() {
       }
       case "app_ready":
         return null;
+      case "plugin:app|version":
+        return "0.1.1";
+      case "update_check": {
+        // 测试可设置 localStorage["baner-mock-update"] 为 UpdateInfo 的 JSON 模拟有新版本;
+        // 设为 "error" 模拟连不上
+        const u = localStorage.getItem("baner-mock-update");
+        localStorage.setItem(
+          "baner-mock-update-checks",
+          String(Number(localStorage.getItem("baner-mock-update-checks")) + 1),
+        );
+        if (u === "error") throw "update: error sending request: network unreachable";
+        return u ? JSON.parse(u) : null;
+      }
+      case "update_install":
+        // 真实应用会在这里重启;模拟只记一笔
+        localStorage.setItem("baner-mock-update-installed", "1");
+        return new Promise((r) => setTimeout(() => r(null), 150));
       default:
         throw new Error(`mock: unknown command ${cmd}`);
     }

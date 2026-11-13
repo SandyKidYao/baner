@@ -54,6 +54,12 @@ export const CheckIcon = () => (
   </svg>
 );
 
+export const CopyIcon = () => (
+  <svg {...base} aria-hidden="true">
+    <path d="M7 7h10v10H7zM13 7V3H3v10h4" />
+  </svg>
+);
+
 export const EyeIcon = () => (
   <svg {...base} aria-hidden="true">
     <path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10z" />
