@@ -96,6 +96,22 @@ svg {
 .keys .sync-btn .badge {
   color: var(--color-rail-accent);
 }
+/* 连不上 GitHub:灰色 ⟳ 加一个空心小点,稍后自动重试。不用危险色,断网不是要用户处理的错误 */
+.keys .sync-btn.offline,
+.narrow .ph .sync-btn.offline {
+  color: var(--color-rail-muted);
+}
+.sync-btn.offline::after {
+  content: "";
+  position: absolute;
+  right: 5px;
+  top: 5px;
+  width: 6px;
+  height: 6px;
+  box-sizing: border-box;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
 .sync-btn.syncing svg {
   animation: spin 0.9s linear infinite;
 }

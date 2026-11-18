@@ -363,3 +363,81 @@ mod master_key {
         assert!(!r.key_reset && r.pushed && r.conflicts.is_empty());
     }
 }
+
+/// 假的 HTTP git 远端:每个请求都回同一个状态行。返回仓库地址和收到的请求数。
+fn fake_http_remote(
+    status: &'static str,
+) -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+    use std::io::{Read, Write};
+    use std::sync::atomic::Ordering;
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/o/r.git", listener.local_addr().unwrap());
+    let count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let n = count.clone();
+    std::thread::spawn(move || {
+        for conn in listener.incoming() {
+            let Ok(mut s) = conn else { break };
+            let mut req = vec![];
+            let mut buf = [0u8; 1024];
+            // 只有 GET 请求(没有正文),读到头部结束就回复
+            while let Ok(k) = s.read(&mut buf) {
+                if k == 0 {
+                    break;
+                }
+                req.extend_from_slice(&buf[..k]);
+                if req.windows(4).any(|w| w == b"\r\n\r\n") {
+                    n.fetch_add(1, Ordering::SeqCst);
+                    let _ = write!(
+                        s,
+                        "HTTP/1.1 {status}\r\nWWW-Authenticate: Basic realm=\"x\"\r\n\
+                         Content-Length: 0\r\nConnection: close\r\n\r\n"
+                    );
+                    break;
+                }
+            }
+        }
+    });
+    (url, count)
+}
+
+fn sync_against(url: &str) -> Result<SyncReport> {
+    let tmp = tempfile::tempdir().unwrap();
+    let d = tmp.path().join("a");
+    Store::open(&d).unwrap();
+    configure(&d, url).unwrap();
+    put(&d, "t1", "b1", "hello");
+    let creds = Credentials {
+        username: Some("x-access-token".into()),
+        token: Some("expired".into()),
+        author: None,
+    };
+    sync(&d, &[], &creds)
+}
+
+#[test]
+fn rejected_token_is_reported_as_auth_without_replaying() {
+    let (url, requests) = fake_http_remote("401 Unauthorized");
+    let err = sync_against(&url).unwrap_err();
+    assert!(matches!(err, Error::AuthRejected), "{err}");
+    // 第一次不带凭据,第二次带 token;被拒后不再拿同一个 token 重试
+    assert_eq!(requests.load(std::sync::atomic::Ordering::SeqCst), 2);
+}
+
+#[test]
+fn missing_repository_is_reported_as_repo() {
+    let (url, _) = fake_http_remote("404 Not Found");
+    let err = sync_against(&url).unwrap_err();
+    assert!(matches!(err, Error::RepoUnavailable(_)), "{err}");
+}
+
+#[test]
+fn unreachable_remote_is_reported_as_network() {
+    // 拿一个空闲端口再关掉,连接会被拒绝
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port();
+    let err = sync_against(&format!("http://127.0.0.1:{port}/o/r.git")).unwrap_err();
+    assert!(matches!(err, Error::Network(_)), "{err}");
+}

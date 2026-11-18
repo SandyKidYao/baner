@@ -1,14 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { describeGithubError, describeSyncError } from "./errors";
+import { describeGithubError, describeSyncError, syncErrorKind } from "./errors";
+
+describe("syncErrorKind", () => {
+  it("按核心层的错误前缀分类", () => {
+    expect(syncErrorKind("auth: remote rejected the credentials")).toBe("auth");
+    expect(syncErrorKind("network: failed to connect to github.com: Operation timed out")).toBe("network");
+    expect(syncErrorKind("repo: unexpected http status code: 404")).toBe("repo");
+    expect(syncErrorKind("identity conflict: this device's master key differs from the repository's")).toBe(
+      "identity",
+    );
+    expect(syncErrorKind(new Error("network: error receiving data from socket: Broken pipe"))).toBe(
+      "network",
+    );
+  });
+  it("其他错误不按字面猜:含 auth、permission 的本地错误不算授权失效", () => {
+    expect(syncErrorKind("io: Permission denied (os error 13)")).toBe("other");
+    expect(syncErrorKind("git: authentication required")).toBe("other");
+  });
+});
 
 describe("describeSyncError", () => {
-  it("识别常见错误", () => {
-    expect(describeSyncError("git: remote authentication required but no callback set")).toBe(
-      "GitHub 授权失效,请重新登录",
-    );
-    expect(describeSyncError("git: unexpected http status code: 401")).toBe("GitHub 授权失效,请重新登录");
-    expect(describeSyncError("git: failed to resolve address for github.com")).toBe("网络不通");
-    expect(describeSyncError("git: unexpected http status code: 404")).toBe(
+  it("给出可行动的说明", () => {
+    expect(describeSyncError("auth: remote rejected the credentials")).toBe("GitHub 授权失效,请重新登录");
+    expect(describeSyncError("network: failed to resolve address for github.com")).toBe("网络不通");
+    expect(describeSyncError("repo: unexpected http status code: 404")).toBe(
       "找不到这个仓库,或它没有授权给 Baner",
     );
     expect(describeSyncError("git: no remote configured")).toBe("还没有选择仓库");

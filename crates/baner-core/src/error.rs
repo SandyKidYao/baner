@@ -12,6 +12,17 @@ pub enum Error {
     Secret(String),
     #[error("git: {0}")]
     Git(String),
+    // 下面三种是访问 git 远端时的错误分类。界面按前缀(auth: / network: / repo:)决定提示和
+    // 是否自动重试,见 src/sync/errors.ts;改前缀要同步改那里。
+    /// 远端拒绝了凭据:token 失效、被撤销,或本机没有 token
+    #[error("auth: remote rejected the credentials")]
+    AuthRejected,
+    /// 连不上远端:解析地址、建立连接、收发数据或 TLS 失败
+    #[error("network: {0}")]
+    Network(String),
+    /// 远端没有这个仓库,或 token 无权访问它
+    #[error("repo: {0}")]
+    RepoUnavailable(String),
     /// GitHub 登录与接口;内容不含 token
     #[error("github: {0}")]
     Github(String),

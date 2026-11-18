@@ -143,7 +143,7 @@ export default function App() {
     setSettings(false);
     select(id);
   };
-  const syncButton = <SyncButton state={sync.state} onSync={sync.run} />;
+  const syncButton = <SyncButton state={sync.state} onSync={sync.run} onLogin={() => setSettings(true)} />;
   const unsynced = sync.state.status?.config.unsyncedTabs ?? [];
   const movable = tabs.filter((t) => !t.locked);
   const menuTab = menu && tabs.find((t) => t.id === menu.tab.id);
@@ -201,6 +201,7 @@ export default function App() {
       tabs={tabs}
       status={sync.state.status}
       syncPhase={sync.state.phase}
+      authExpired={sync.state.errorKind === "auth"}
       onSaved={sync.onConfigured}
       crypto={crypto}
       onCryptoStatus={setCrypto}
