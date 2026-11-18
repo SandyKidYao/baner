@@ -201,34 +201,68 @@ fn commit_local(repo: &Repository, author: Option<&Author>) -> Result<bool> {
     Ok(true)
 }
 
+/// 每次 fetch / push 新建一份:libgit2 在一次操作里会复用已被接受的凭据,只有远端回 401 时
+/// 才再来要。所以第二次要凭据就说明上一次被拒了,直接报授权失败;否则 libgit2 会拿同一个
+/// 失效的 token 重试十几次,最后只给出含糊的「too many redirects or authentication replays」。
 fn callbacks(creds: &Credentials) -> RemoteCallbacks<'_> {
     let mut cb = RemoteCallbacks::new();
-    cb.credentials(move |_url, user_from_url, _allowed| match &creds.token {
-        Some(token) => {
-            let user = creds
-                .username
-                .as_deref()
-                .filter(|u| !u.is_empty())
-                .or(user_from_url)
-                .unwrap_or("git");
-            Cred::userpass_plaintext(user, token)
+    let mut asked = false;
+    cb.credentials(move |_url, user_from_url, _allowed| {
+        if std::mem::replace(&mut asked, true) {
+            return Err(git2::Error::new(
+                git2::ErrorCode::Auth,
+                git2::ErrorClass::Http,
+                "credentials rejected",
+            ));
         }
-        None => Cred::default(),
+        match &creds.token {
+            Some(token) => {
+                let user = creds
+                    .username
+                    .as_deref()
+                    .filter(|u| !u.is_empty())
+                    .or(user_from_url)
+                    .unwrap_or("git");
+                Cred::userpass_plaintext(user, token)
+            }
+            None => Cred::default(),
+        }
     });
     cb
+}
+
+/// 访问远端时的错误归类:界面据此给出提示,并决定是否自动重试。
+fn remote_error(e: git2::Error) -> Error {
+    use git2::{ErrorClass, ErrorCode};
+    let msg = e.message().to_string();
+    if e.code() == ErrorCode::Auth {
+        return Error::AuthRejected;
+    }
+    match e.class() {
+        ErrorClass::Net | ErrorClass::Ssl => Error::Network(msg),
+        _ if e.code() == ErrorCode::Certificate => Error::Network(msg),
+        // 连接被拒绝时 libgit2 用的是 OS 类别
+        ErrorClass::Os if msg.starts_with("failed to connect") => Error::Network(msg),
+        ErrorClass::Http if msg.ends_with(": 403") || msg.ends_with(": 404") => {
+            Error::RepoUnavailable(msg)
+        }
+        _ => Error::Git(msg),
+    }
 }
 
 fn fetch(repo: &Repository, creds: &Credentials) -> Result<Option<Oid>> {
     let mut remote = repo.find_remote(REMOTE)?;
     let mut fo = FetchOptions::new();
     fo.remote_callbacks(callbacks(creds));
-    remote.fetch(
-        &[format!(
-            "+refs/heads/{BRANCH}:refs/remotes/{REMOTE}/{BRANCH}"
-        )],
-        Some(&mut fo),
-        None,
-    )?;
+    remote
+        .fetch(
+            &[format!(
+                "+refs/heads/{BRANCH}:refs/remotes/{REMOTE}/{BRANCH}"
+            )],
+            Some(&mut fo),
+            None,
+        )
+        .map_err(remote_error)?;
     Ok(repo
         .refname_to_id(&format!("refs/remotes/{REMOTE}/{BRANCH}"))
         .ok())
@@ -261,7 +295,7 @@ fn push(repo: &Repository, creds: &Credentials) -> Result<PushOutcome> {
             Err(e) if e.code() == git2::ErrorCode::NotFastForward => {
                 return Ok(PushOutcome::Rejected);
             }
-            Err(e) => return Err(e.into()),
+            Err(e) => return Err(remote_error(e)),
         }
     }
     Ok(if rejected.get() {

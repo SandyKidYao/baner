@@ -118,20 +118,96 @@ test("U7:按 tab 关闭同步,重启后保持", async ({ page }) => {
   );
 });
 
+/** 已登录、已选仓库,同步会以 err 失败;时钟由测试推进 */
+async function configuredWithError(page: Page, err: string) {
+  await page.clock.install();
+  await page.goto("/");
+  await page.evaluate((err) => {
+    localStorage.setItem("baner-mock-sync-error", err);
+    localStorage.setItem(
+      "baner-mock-store",
+      JSON.stringify({
+        __sync: {
+          remoteUrl: "https://github.com/octo/notes.git",
+          githubLogin: "octo",
+          unsyncedTabs: [],
+          hasToken: true,
+        },
+      }),
+    );
+  }, err);
+  await page.reload();
+  await page.clock.runFor(1000);
+  return () => page.evaluate(() => Number(localStorage.getItem("baner-mock-sync-count")));
+}
+
 test("U8:同步失败时显示 ✕,点开看到原因并可以重试", async ({ page }) => {
   await page.goto("/");
-  await page.evaluate(() =>
-    localStorage.setItem("baner-mock-sync-error", "git: unexpected http status code: 401"),
-  );
+  await page.evaluate(() => localStorage.setItem("baner-mock-sync-error", "git: index is locked"));
   await loginAndPick(page);
 
   const btn = page.getByRole("button", { name: /同步失败/ });
   await expect(btn).toBeVisible();
   await btn.click();
-  await expect(page.getByRole("alert")).toContainText("GitHub 授权失效,请重新登录");
+  await expect(page.getByRole("alert")).toContainText("git: index is locked");
 
   await page.evaluate(() => localStorage.removeItem("baner-mock-sync-error"));
   await page.getByRole("alert").getByRole("button", { name: "重试" }).click();
+  await expect(page.getByRole("button", { name: /已同步/ })).toBeVisible();
+});
+
+test("U8:授权失效时暂停自动同步,引导重新登录", async ({ page }) => {
+  const count = await configuredWithError(page, "auth: remote rejected the credentials");
+  const btn = page.getByRole("button", { name: /同步失败:GitHub 授权失效/ });
+  await expect(btn).toBeVisible();
+  const before = await count();
+
+  // 编辑、切回窗口、定时拉取都不再触发同步
+  await page.getByTestId("editor").click();
+  await page.keyboard.type("离线写的");
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await page.clock.runFor(6 * 60_000);
+  expect(await count()).toBe(before);
+
+  // 弹出层的「重新登录」打开设置面板,不用先退出就能重新登录
+  await btn.click();
+  await expect(page.getByRole("alert")).toContainText("GitHub 授权失效,请重新登录");
+  await page.getByRole("alert").getByRole("button", { name: "重新登录" }).click();
+  await expect(panel(page).getByText("GitHub 授权已失效,重新登录后继续同步。")).toBeVisible();
+  await page.evaluate(() => localStorage.removeItem("baner-mock-sync-error"));
+  await panel(page).getByRole("button", { name: "重新登录" }).click();
+  await page.clock.runFor(30_000); // 轮询授权结果
+  await expect(page.getByRole("button", { name: /已同步/ })).toBeVisible();
+  await expect(panel(page).getByText("GitHub 授权已失效")).toHaveCount(0);
+});
+
+test("U8:网络不通时安静地显示,逐步拉长间隔自动重试,网络恢复立即同步", async ({ page }) => {
+  const count = await configuredWithError(
+    page,
+    "network: failed to connect to github.com: Operation timed out",
+  );
+  const btn = page.getByRole("button", { name: /网络不通,稍后自动重试/ });
+  await expect(btn).toBeVisible();
+  await expect(btn).toHaveClass(/offline/);
+  await expect(page.getByRole("button", { name: /同步失败/ })).toHaveCount(0);
+  const before = await count();
+
+  // 30 秒内切回窗口不触发同步,到点自动重试一次
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await page.clock.runFor(25_000);
+  expect(await count()).toBe(before);
+  await page.clock.runFor(6_000);
+  await expect.poll(count).toBe(before + 1);
+  // 第二次失败后等 60 秒
+  await page.clock.runFor(50_000);
+  expect(await count()).toBe(before + 1);
+
+  // 网络恢复:立即同步
+  await page.evaluate(() => {
+    localStorage.removeItem("baner-mock-sync-error");
+    window.dispatchEvent(new Event("online"));
+  });
+  await page.clock.runFor(500);
   await expect(page.getByRole("button", { name: /已同步/ })).toBeVisible();
 });
 
@@ -270,7 +346,7 @@ test("同步记录:显示上次同步的时间和每次同步的结果;同步按
 
   // 失败的记录显示原因;「上次同步」仍是最近一次成功的时间
   await page.evaluate(() =>
-    localStorage.setItem("baner-mock-sync-error", "git: unexpected http status code: 401"),
+    localStorage.setItem("baner-mock-sync-error", "auth: remote rejected the credentials"),
   );
   await page.getByRole("button", { name: /已同步/ }).click();
   await expect(log.getByRole("listitem").first()).toContainText("✕ GitHub 授权失效,请重新登录");

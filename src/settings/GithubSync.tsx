@@ -16,6 +16,8 @@ import { describeGithubError } from "../sync/errors";
 
 interface Props {
   status: SyncStatus | null;
+  /** 同步时 GitHub 拒绝了本机的 token:在账号下面直接给出重新登录,不用先退出 */
+  authExpired: boolean;
   /** 登录、选仓库、退出登录之后调用 */
   onChanged: (s: SyncStatus) => void;
 }
@@ -34,7 +36,7 @@ const Err = ({ msg }: { msg: string | null }) =>
   ) : null;
 
 /** 同步:用 GitHub 登录 → 选择仓库(ADR-0009)。 */
-export function GithubSync({ status, onChanged }: Props) {
+export function GithubSync({ status, authExpired, onChanged }: Props) {
   const [picking, setPicking] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   if (!status) return null;
@@ -75,6 +77,12 @@ export function GithubSync({ status, onChanged }: Props) {
           退出登录
         </button>
       </div>
+      {authExpired && (
+        <>
+          <p className="warn">GitHub 授权已失效,重新登录后继续同步。</p>
+          <Login onDone={onChanged} relogin />
+        </>
+      )}
       {repo && !picking ? (
         <div className="gh-row gh-current">
           <span>
@@ -107,7 +115,7 @@ type LoginState =
   | { kind: "denied" };
 
 /** Device Flow:显示验证码,用户在浏览器里输入并授权,这里轮询结果。 */
-function Login({ onDone }: { onDone: (s: SyncStatus) => void }) {
+function Login({ onDone, relogin = false }: { onDone: (s: SyncStatus) => void; relogin?: boolean }) {
   const [st, setSt] = useState<LoginState>({ kind: "idle" });
   const [opened, setOpened] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -207,9 +215,13 @@ function Login({ onDone }: { onDone: (s: SyncStatus) => void }) {
       {st.kind === "expired" && <p className="warn">验证码已过期,重新获取一个。</p>}
       {st.kind === "denied" && <p className="warn">在 GitHub 上没有完成授权。</p>}
       <button type="button" className="primary" disabled={st.kind === "starting"} onClick={start}>
-        {st.kind === "idle" || st.kind === "starting" ? "用 GitHub 登录" : "重新获取验证码"}
+        {st.kind === "idle" || st.kind === "starting"
+          ? relogin
+            ? "重新登录"
+            : "用 GitHub 登录"
+          : "重新获取验证码"}
       </button>
-      {st.kind === "idle" && (
+      {st.kind === "idle" && !relogin && (
         <p className="hint muted">会在浏览器里打开 GitHub。授权后回到这里,选择存放笔记的仓库。</p>
       )}
       <Err msg={err} />

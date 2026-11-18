@@ -14,6 +14,8 @@ interface Props {
   status: SyncStatus | null;
   /** 同步状态:每次同步结束后刷新同步记录 */
   syncPhase: SyncPhase;
+  /** 同步时 GitHub 拒绝了本机的 token:提示重新登录 */
+  authExpired: boolean;
   /** 登录、选仓库、退出登录之后调用,由调用方立即同步 */
   onSaved: (s: SyncStatus) => void;
   crypto: CryptoStatus | null;
@@ -33,6 +35,7 @@ export function SettingsPanel({
   tabs,
   status,
   syncPhase,
+  authExpired,
   onSaved,
   crypto,
   onCryptoChanged,
@@ -72,7 +75,7 @@ export function SettingsPanel({
         </button>
       </header>
 
-      <GithubSync status={status} onChanged={onSaved} />
+      <GithubSync status={status} authExpired={authExpired} onChanged={onSaved} />
       <SyncHistory tabs={tabs} phase={syncPhase} configured={!!status?.config.remoteUrl && status.hasToken} />
 
       <h3 className="sub">

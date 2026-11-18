@@ -6,21 +6,29 @@ import type { SyncState } from "./useSync";
 interface Props {
   state: SyncState;
   onSync: () => void;
+  /** 授权失效时,弹出层里的「重新登录」:打开同步与加密面板 */
+  onLogin: () => void;
 }
 
-/** 轨道底部的同步符号:静止 ⟳ / 转动 / ⚠ 角标 / ✕。点击立即同步;出错时先展开原因。 */
-export function SyncButton({ state, onSync }: Props) {
+/**
+ * 轨道底部的同步符号:静止 ⟳ / 转动 / ⚠ 角标 / 灰色 ⟳(连不上,稍后自动重试)/ ✕(要用户处理)。
+ * 点击立即同步;✕ 时先展开原因。
+ */
+export function SyncButton({ state, onSync, onLogin }: Props) {
   const [open, setOpen] = useState(false);
   if (state.phase === "off") return null;
   const at = state.lastSyncedAt ? ` ${formatTime(state.lastSyncedAt)}` : "";
   const label =
     state.phase === "syncing"
       ? "同步中"
-      : state.phase === "error"
-        ? `同步失败:${state.error}`
-        : state.conflict
-          ? `已同步${at},有冲突的块`
-          : `已同步${at},点击立即同步`;
+      : state.phase === "offline"
+        ? `${state.error},稍后自动重试。点击立即重试`
+        : state.phase === "error"
+          ? `同步失败:${state.error}`
+          : state.conflict
+            ? `已同步${at},有冲突的块`
+            : `已同步${at},点击立即同步`;
+  const auth = state.errorKind === "auth";
   return (
     <div className="sync">
       <button
@@ -45,11 +53,18 @@ export function SyncButton({ state, onSync }: Props) {
             className="sym"
             onClick={() => {
               setOpen(false);
-              onSync();
+              if (auth) onLogin();
+              else onSync();
             }}
           >
-            <SyncIcon />
-            重试
+            {auth ? (
+              "重新登录"
+            ) : (
+              <>
+                <SyncIcon />
+                重试
+              </>
+            )}
           </button>
         </div>
       )}
