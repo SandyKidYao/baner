@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 发版:把版本号写进 package.json、tauri.conf.json、Cargo.toml(和两个 lock 文件),
 # 提交并打 tag。推送 tag 后 .github/workflows/release.yml 会检查、构建并发布 GitHub Release。
+# main 受保护,只能经 PR 合并:版本号提交推到 release/<tag> 分支,用 merge commit 合进 main。
 #   scripts/release.sh 0.2.0          # 正式版
 #   scripts/release.sh 0.2.0-beta.1   # 带 - 的版本发成 prerelease
 set -euo pipefail
@@ -33,5 +34,7 @@ git add package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo
 git diff --cached --quiet || git commit -q -m "chore(release): $tag"
 git tag -a "$tag" -m "Baner $tag"
 
-echo "✓ 已提交并打好 tag ${tag}。确认无误后推送,CI 会构建并发布:"
-echo "  git push origin main $tag"
+echo "✓ 已提交并打好 tag ${tag}。确认无误后:"
+echo "  git push origin $tag                    # CI 构建并发布 Release"
+echo "  git push origin HEAD:release/$tag && gh pr create --base main --head release/$tag --fill"
+echo "  PR 用「Create a merge commit」合并(tag 指向的提交才会留在 main 上),之后 git pull --ff-only"
