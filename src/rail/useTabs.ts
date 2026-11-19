@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { keyBetween, newId } from "../blocks/model";
-import { deleteTab, listTabs, loadBlocks, saveTab, type TabMeta } from "../ipc";
+import { createTab, deleteTab, listTabs, loadBlocks, saveTab, type TabMeta } from "../ipc";
 
 const LAST = "baner.lastTab"; // 本机便利:记住上次打开的 tab
 const PLACEHOLDER = "baner.placeholderTab"; // 首次启动自动建的空 tab;同步拉到别的 tab 后,如果仍是空的就删掉
@@ -48,7 +48,7 @@ export function useTabs(onEdited?: () => void) {
       if (list.length === 0) {
         const first: TabMeta = { id: newId(), name: "工作", glyph: "工", key: keyBetween(null, null) };
         writeKey(PLACEHOLDER, first.id); // 先记下再写盘:同步看到这个 tab 时一定知道它是占位
-        await saveTab(first);
+        await createTab(first); // 和用户新建的 tab 一样默认不同步
         list = [first];
       }
       setTabs(list);
@@ -70,7 +70,7 @@ export function useTabs(onEdited?: () => void) {
       glyph: "新",
       key: keyBetween(tabs[tabs.length - 1]?.key ?? null, null),
     };
-    await saveTab(t);
+    await createTab(t); // 新建的 tab 默认不同步
     setTabs([...tabs, t]);
     edited.current?.();
     return t; // 由调用方选中,以便先标记「刚新建」

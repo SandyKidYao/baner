@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { TabMeta } from "../ipc";
-import { LockIcon, SyncIcon } from "./icons";
+import { CloudIcon, LockIcon } from "./icons";
 import { TabNameEdit } from "./TabNameEdit";
 
 interface Props {
@@ -62,10 +62,10 @@ export function PageHeader({
           <span title={synced ? "这个 tab 会同步" : "这个 tab 只留在本机"}>
             {synced ? (
               <>
-                <SyncIcon /> 同步
+                <CloudIcon /> 同步
               </>
             ) : (
-              "○ 不同步"
+              "不同步"
             )}
           </span>
         )}

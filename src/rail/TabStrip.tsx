@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { TabMeta } from "../ipc";
-import { LockIcon, PlusIcon } from "./icons";
+import { CloudIcon, LockIcon, PlusIcon } from "./icons";
 import { MOD } from "./keys";
 import { TabNameEdit } from "./TabNameEdit";
 
@@ -13,6 +13,8 @@ interface Props {
   onMove: (id: string, before: string | null) => void;
   /** 右键(或 Shift+F10)打开 tab 菜单 */
   onMenu: (tab: TabMeta, x: number, y: number, opener: HTMLElement) => void;
+  /** 不同步的 tab;null 表示还没有配置同步(这时不画云朵) */
+  unsynced: string[] | null;
   /** 正在改名的 tab */
   renaming: string | null;
   onRename: (id: string) => void;
@@ -94,6 +96,8 @@ export function TabStrip(p: Props) {
         {tabs.map((t, i) => {
           const hint = i < 9 ? ` ${MOD}${i + 1}` : "";
           const name = t.locked ? "加密 tab" : t.name;
+          const synced = !!p.unsynced && !p.unsynced.includes(t.id);
+          const label = synced ? `${name}(同步)` : name;
           const act = t.id === activeId;
           let cls = act ? "tab act" : "tab";
           if (dragging?.id === t.id) cls += " dragging";
@@ -122,8 +126,8 @@ export function TabStrip(p: Props) {
                   : undefined
               }
               aria-current={act ? "page" : undefined}
-              aria-label={name}
-              title={t.locked ? `${name}${hint}` : `${name}${hint}(双击改名,长按拖动排序,右键更多)`}
+              aria-label={label}
+              title={t.locked ? `${label}${hint}` : `${label}${hint}(双击改名,长按拖动排序,右键更多)`}
               onPointerDown={(e) => {
                 if (e.button !== 0 || t.locked) return;
                 const d: Drag = {
@@ -205,6 +209,11 @@ export function TabStrip(p: Props) {
               {t.encrypted && !t.locked && (
                 <i className="badge" title="加密">
                   <LockIcon />
+                </i>
+              )}
+              {synced && (
+                <i className="badge synced" title="同步到 GitHub 仓库">
+                  <CloudIcon />
                 </i>
               )}
             </button>

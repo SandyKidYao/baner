@@ -44,6 +44,8 @@ export const saveDrawing = (tab: string, block: Pick<Block, "id" | "key">, drawi
   invoke<boolean>("save_drawing", { tab, id: block.id, key: block.key, drawing });
 export const listTabs = () => invoke<TabMeta[]>("list_tabs");
 export const saveTab = (tab: TabMeta) => invoke<void>("save_tab", { tab });
+/** 新建 tab:默认不同步(记进本机配置),返回更新后的同步配置 */
+export const createTab = (tab: TabMeta) => invoke<SyncConfig>("create_tab", { tab });
 export const deleteTab = (id: string) => invoke<void>("delete_tab", { id });
 export const syncStatus = () => invoke<SyncStatus>("sync_status");
 export const githubLoginStart = () => invoke<LoginCode>("github_login_start");

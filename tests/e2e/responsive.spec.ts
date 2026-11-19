@@ -113,3 +113,33 @@ test("U18:抽屉里右键 tab 打开菜单,可以删除", async ({ page }) => {
   await ctx.getByRole("menuitem", { name: "再按一次确认删除" }).click();
   await expect(page.locator(".ph-name")).toHaveText("工作");
 });
+
+test("抽屉里同步的 tab 画云朵,新建的 tab 默认不同步、不画", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "baner-mock-store",
+      JSON.stringify({
+        __sync: {
+          remoteUrl: "https://github.com/octo/notes.git",
+          githubLogin: "octo",
+          unsyncedTabs: [],
+          hasToken: true,
+        },
+        __tabs: [{ id: "t1", name: "工作", glyph: "工", key: "a0" }],
+      }),
+    ),
+  );
+  await page.reload();
+  await menu(page).click();
+  await drawer(page).getByRole("button", { name: "新 tab" }).click();
+  await page.getByLabel("tab 名称").fill("草稿");
+  await page.getByLabel("tab 名称").press("Enter");
+  await menu(page).click();
+  await expect(
+    drawer(page).getByRole("button", { name: "工作" }).getByRole("img", { name: "同步" }),
+  ).toBeVisible();
+  await expect(
+    drawer(page).getByRole("button", { name: "草稿" }).getByRole("img", { name: "同步" }),
+  ).toHaveCount(0);
+});

@@ -1,11 +1,13 @@
 import { useEffect, useRef } from "react";
 import type { TabMeta } from "../ipc";
-import { GearIcon, LockIcon, PlusIcon } from "./icons";
+import { CloudIcon, GearIcon, LockIcon, PlusIcon } from "./icons";
 import { isMenuKey, menuPoint } from "./TabStrip";
 
 interface Props {
   tabs: TabMeta[];
   activeId: string | null;
+  /** 不同步的 tab;null 表示还没有配置同步(这时不画云朵) */
+  unsynced: string[] | null;
   onSelect: (id: string) => void;
   onCreate: () => void;
   onSettings: () => void;
@@ -20,6 +22,7 @@ interface Props {
 export function Drawer({
   tabs,
   activeId,
+  unsynced,
   onSelect,
   onCreate,
   onSettings,
@@ -75,6 +78,11 @@ export function Drawer({
             {t.encrypted && (
               <span className="row-sym" title="加密">
                 <LockIcon />
+              </span>
+            )}
+            {unsynced && !unsynced.includes(t.id) && (
+              <span className="row-sym" role="img" aria-label="同步" title="同步到 GitHub 仓库">
+                <CloudIcon />
               </span>
             )}
           </button>

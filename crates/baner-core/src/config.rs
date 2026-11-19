@@ -16,6 +16,20 @@ pub struct SyncConfig {
     pub unsynced_tabs: Vec<String>,
 }
 
+impl SyncConfig {
+    /// 开关一个 tab 的同步。新建的 tab 默认不同步,由用户在 tab 菜单或设置里打开。
+    pub fn set_tab_synced(&mut self, id: &str, synced: bool) {
+        self.unsynced_tabs.retain(|t| t != id);
+        if !synced {
+            self.unsynced_tabs.push(id.into());
+        }
+    }
+
+    pub fn is_tab_synced(&self, id: &str) -> bool {
+        !self.unsynced_tabs.iter().any(|t| t == id)
+    }
+}
+
 pub struct ConfigStore {
     path: PathBuf,
 }
@@ -43,5 +57,33 @@ impl ConfigStore {
         fs::write(&tmp, serde_json::to_vec_pretty(c)?)?;
         fs::rename(tmp, &self.path)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn toggling_sync_keeps_one_entry_per_tab() {
+        let mut c = SyncConfig::default();
+        assert!(c.is_tab_synced("t1"));
+        c.set_tab_synced("t1", false);
+        c.set_tab_synced("t1", false);
+        assert_eq!(c.unsynced_tabs, vec!["t1".to_string()]);
+        assert!(!c.is_tab_synced("t1"));
+        c.set_tab_synced("t1", true);
+        assert!(c.unsynced_tabs.is_empty());
+    }
+
+    #[test]
+    fn save_and_load_round_trip() {
+        let d = tempfile::tempdir().unwrap();
+        let store = ConfigStore::new(d.path().join("config.json"));
+        assert_eq!(store.load().unwrap(), SyncConfig::default());
+        let mut c = SyncConfig::default();
+        c.set_tab_synced("t1", false);
+        store.save(&c).unwrap();
+        assert_eq!(store.load().unwrap(), c);
     }
 }

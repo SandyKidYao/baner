@@ -103,18 +103,18 @@ test("U7:验证码过期后可以重新获取", async ({ page }) => {
   await expect(panel(page).getByRole("list", { name: "仓库" })).toBeVisible();
 });
 
-test("U7:按 tab 关闭同步,重启后保持", async ({ page }) => {
+test("U7:按 tab 打开同步,重启后保持(首次启动建的「工作」默认不同步)", async ({ page }) => {
   await page.goto("/");
   await openSettings(page);
   const tog = panel(page).getByRole("button", { name: "同步「工作」" });
-  await expect(tog).toHaveAttribute("aria-pressed", "true");
-  await tog.click();
   await expect(tog).toHaveAttribute("aria-pressed", "false");
+  await tog.click();
+  await expect(tog).toHaveAttribute("aria-pressed", "true");
   await page.reload();
   await openSettings(page);
   await expect(panel(page).getByRole("button", { name: "同步「工作」" })).toHaveAttribute(
     "aria-pressed",
-    "false",
+    "true",
   );
 });
 

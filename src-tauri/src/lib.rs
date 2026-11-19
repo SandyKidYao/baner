@@ -102,9 +102,26 @@ fn save_tab(state: State<AppState>, tab: TabMeta) -> CmdResult<()> {
     state.store.lock().unwrap().save_tab(&tab)
 }
 
+/// 新建 tab:默认不同步。先记进本机配置再写文件,同步不会在两步之间把它推上去。
+#[tauri::command]
+fn create_tab(state: State<AppState>, tab: TabMeta) -> CmdResult<SyncConfig> {
+    let mut c = state.config.load()?;
+    c.set_tab_synced(&tab.id, false);
+    state.config.save(&c)?;
+    state.store.lock().unwrap().save_tab(&tab)?;
+    Ok(c)
+}
+
 #[tauri::command]
 fn delete_tab(state: State<AppState>, id: String) -> CmdResult<()> {
-    state.store.lock().unwrap().delete_tab(&id)
+    state.store.lock().unwrap().delete_tab(&id)?;
+    // 文件夹已删掉,不同步的名单里也不用再留着它
+    let mut c = state.config.load()?;
+    if !c.is_tab_synced(&id) {
+        c.set_tab_synced(&id, true);
+        state.config.save(&c)?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -242,10 +259,7 @@ fn sync_use_repo(state: State<AppState>, full_name: String) -> CmdResult<SyncSta
 #[tauri::command]
 fn set_tab_synced(state: State<AppState>, id: String, synced: bool) -> CmdResult<SyncConfig> {
     let mut c = state.config.load()?;
-    c.unsynced_tabs.retain(|t| t != &id);
-    if !synced {
-        c.unsynced_tabs.push(id);
-    }
+    c.set_tab_synced(&id, synced);
     state.config.save(&c)?;
     Ok(c)
 }
@@ -483,6 +497,7 @@ pub fn run() {
             save_drawing,
             list_tabs,
             save_tab,
+            create_tab,
             delete_tab,
             sync_status,
             github_login_start,

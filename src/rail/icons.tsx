@@ -74,6 +74,13 @@ export const LockIcon = () => (
   </svg>
 );
 
+/** 这个 tab 会同步:云朵(不同步的 tab 不画符号) */
+export const CloudIcon = () => (
+  <svg {...base} aria-hidden="true">
+    <path d="M6 15.5h8.5a3.5 3.5 0 0 0 .6-6.95A5 5 0 0 0 6.2 6.6 4.5 4.5 0 0 0 6 15.5z" />
+  </svg>
+);
+
 export const MenuIcon = () => (
   <svg {...base} aria-hidden="true">
     <path d="M3 5h14M3 10h14M3 15h14" />

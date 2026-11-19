@@ -156,14 +156,87 @@ test("右键菜单开关同步,与配置面板一致", async ({ page }) => {
   await page.goto("/");
   await tabButtons(page).first().click({ button: "right" });
   const item = page.getByRole("menuitemcheckbox", { name: "同步" });
-  await expect(item).toHaveAttribute("aria-checked", "true");
+  await expect(item).toHaveAttribute("aria-checked", "false"); // 首次启动建的「工作」默认不同步
   await item.click();
   await expect(menu(page)).toHaveCount(0);
   await tabButtons(page).first().click({ button: "right" });
-  await expect(item).toHaveAttribute("aria-checked", "false");
+  await expect(item).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "同步与加密" }).click();
-  await expect(page.getByRole("button", { name: "同步「工作」" })).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("button", { name: "同步「工作」" })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("同步的 tab 画云朵;新建的 tab 默认不同步,不画;打开同步后出现云朵", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "baner-mock-store",
+      JSON.stringify({
+        __sync: {
+          remoteUrl: "https://github.com/octo/notes.git",
+          githubLogin: "octo",
+          unsyncedTabs: [],
+          hasToken: true,
+        },
+        __tabs: [{ id: "t1", name: "工作", glyph: "工", key: "a0" }],
+      }),
+    ),
+  );
+  await page.reload();
+  await expect(page.getByRole("button", { name: /已同步/ })).toBeVisible();
+  await expect(tabButtons(page).first()).toHaveAccessibleName("工作(同步)"); // 已有的 tab 照常同步
+  await expect(tabButtons(page).first().locator(".badge.synced")).toBeVisible();
+
+  await makeTabs(page, ["草稿"]);
+  const draft = tabButtons(page).nth(1);
+  await expect(draft).toHaveAccessibleName("草稿");
+  await expect(draft.locator(".badge.synced")).toHaveCount(0);
+  await expect(page.locator(".ph-meta")).toContainText("不同步");
+
+  await draft.click({ button: "right" });
+  const item = page.getByRole("menuitemcheckbox", { name: "同步" });
+  await expect(item).toHaveAttribute("aria-checked", "false");
+  await item.click();
+  await expect(draft.locator(".badge.synced")).toBeVisible();
+  await expect(draft).toHaveAccessibleName("草稿(同步)");
+
+  // 删掉的 tab 不再留在本机的不同步名单里
+  await makeTabs(page, ["临时"]);
+  await tabButtons(page).nth(2).click({ button: "right" });
+  await menuItem(page, "删除").click();
+  await menuItem(page, "再按一次确认删除").click();
+  await expect(tabButtons(page)).toHaveCount(2);
+  const store = await page.evaluate(() => JSON.parse(localStorage.getItem("baner-mock-store") ?? "{}"));
+  expect(store.__sync.unsyncedTabs).toEqual([]);
+});
+
+test("首次启动自动建的「工作」tab 默认不同步", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "baner-mock-store",
+      JSON.stringify({
+        __sync: {
+          remoteUrl: "https://github.com/octo/notes.git",
+          githubLogin: "octo",
+          unsyncedTabs: [],
+          hasToken: true,
+        },
+      }),
+    ),
+  );
+  await page.reload();
+  await expect(tabButtons(page)).toHaveCount(1);
+  await expect(tabButtons(page).first()).toHaveAccessibleName("工作");
+  await expect(tabButtons(page).first().locator(".badge.synced")).toHaveCount(0);
+});
+
+test("没有配置同步时 tab 条不画云朵(打开了同步开关的 tab 也不画)", async ({ page }) => {
+  await page.goto("/");
+  await makeTabs(page, ["草稿"]);
+  await tabButtons(page).first().click({ button: "right" });
+  await page.getByRole("menuitemcheckbox", { name: "同步" }).click();
+  await expect(rail(page).locator(".badge.synced")).toHaveCount(0);
 });
 
 test("右键菜单加密:没有主密钥时引导去配置;有主密钥时直接开关", async ({ page }) => {

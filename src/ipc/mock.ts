@@ -135,9 +135,19 @@ export function installMockIpc() {
         const delay = Number(localStorage.getItem("baner-mock-save-tab-delay"));
         return delay ? new Promise((r) => setTimeout(() => r(null), delay)) : null;
       }
+      case "create_tab": {
+        const t = (args as { tab: TabMeta }).tab;
+        const c = db.__sync ?? { ...NO_SYNC };
+        db.__sync = { ...c, unsyncedTabs: [...c.unsyncedTabs.filter((x) => x !== t.id), t.id] };
+        write(db);
+        const saved = handler("save_tab", { tab: t });
+        const c2 = config(read().__sync ?? NO_SYNC);
+        return saved instanceof Promise ? saved.then(() => c2) : c2;
+      }
       case "delete_tab":
         db.__tabs = (db.__tabs ?? []).filter((x) => x.id !== a.id);
         delete db[a.id ?? ""];
+        if (db.__sync) db.__sync.unsyncedTabs = db.__sync.unsyncedTabs.filter((x) => x !== a.id);
         write(db);
         return null;
       case "sync_status": {

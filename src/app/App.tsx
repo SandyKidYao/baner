@@ -99,7 +99,8 @@ export default function App() {
     if (!t) return;
     setRenaming(t.id);
     select(t.id);
-  }, [create, select]);
+    await sync.refreshStatus(); // 新 tab 默认不同步:取回配置,tab 条上标出来
+  }, [create, select, sync.refreshStatus]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -145,6 +146,8 @@ export default function App() {
   };
   const syncButton = <SyncButton state={sync.state} onSync={sync.run} onLogin={() => setSettings(true)} />;
   const unsynced = sync.state.status?.config.unsyncedTabs ?? [];
+  // 还没有配置同步时不标记「不同步」(那时所有 tab 都不同步)
+  const unsyncedShown = sync.state.phase === "off" ? null : unsynced;
   const movable = tabs.filter((t) => !t.locked);
   const menuTab = menu && tabs.find((t) => t.id === menu.tab.id);
   const menuIndex = menuTab ? movable.findIndex((t) => t.id === menuTab.id) : -1;
@@ -153,7 +156,7 @@ export default function App() {
   const header = (
     <PageHeader
       tab={active}
-      synced={sync.state.phase === "off" ? null : !unsynced.includes(active.id)}
+      synced={unsyncedShown && !unsyncedShown.includes(active.id)}
       narrow={narrow}
       renaming={renaming === active.id}
       onRename={() => setRenaming(active.id)}
@@ -163,6 +166,7 @@ export default function App() {
           <TabStrip
             tabs={tabs}
             activeId={active.id}
+            unsynced={unsyncedShown}
             onSelect={selectTab}
             onCreate={newTab}
             onMove={move}
@@ -225,6 +229,7 @@ export default function App() {
         <Drawer
           tabs={tabs}
           activeId={active.id}
+          unsynced={unsyncedShown}
           onSelect={selectTab}
           onCreate={newTab}
           onSettings={() => setSettings(true)}

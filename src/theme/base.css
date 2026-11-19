@@ -256,6 +256,11 @@ svg {
   width: 12px;
   height: 12px;
 }
+/* 云朵比锁扁,放大一号才和锁一样醒目 */
+.strip .badge.synced svg {
+  width: 14px;
+  height: 14px;
+}
 .tab-add {
   flex: none;
   width: 28px;

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { describeCryptoError } from "../crypto/errors";
 import { MasterKey } from "../crypto/MasterKey";
 import { type CryptoStatus, type SyncStatus, setTabEncrypted, setTabSynced, type TabMeta } from "../ipc";
-import { CrossIcon, LockIcon, SyncIcon } from "../rail/icons";
+import { CloudIcon, CrossIcon, LockIcon, SyncIcon } from "../rail/icons";
 import { SyncHistory } from "../sync/SyncHistory";
 import type { SyncPhase } from "../sync/useSync";
 import { UpdateSection } from "../update/UpdateSection";
@@ -102,7 +102,7 @@ export function SettingsPanel({
                   aria-label={`同步「${t.name || "加密 tab"}」`}
                   onClick={() => toggle(t.id)}
                 >
-                  <SyncIcon />
+                  <CloudIcon />
                 </button>
                 <button
                   type="button"
