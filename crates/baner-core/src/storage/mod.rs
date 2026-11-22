@@ -84,7 +84,7 @@ fn remove_if_exists(p: &Path) -> Result<()> {
 fn write_atomic(dir: &Path, name: &str, data: &[u8]) -> Result<()> {
     let tmp = dir.join(format!(".{name}.tmp"));
     fs::write(&tmp, data)?;
-    fs::rename(&tmp, dir.join(name))?;
+    crate::fsutil::replace(&tmp, &dir.join(name))?;
     Ok(())
 }
 

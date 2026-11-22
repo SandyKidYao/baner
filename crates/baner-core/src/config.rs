@@ -55,7 +55,7 @@ impl ConfigStore {
         }
         let tmp = self.path.with_extension("json.tmp");
         fs::write(&tmp, serde_json::to_vec_pretty(c)?)?;
-        fs::rename(tmp, &self.path)?;
+        crate::fsutil::replace(&tmp, &self.path)?;
         Ok(())
     }
 }

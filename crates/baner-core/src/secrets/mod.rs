@@ -42,7 +42,7 @@ impl SecretStore {
         let tmp = self.path.with_extension("json.tmp");
         fs::write(&tmp, serde_json::to_vec_pretty(map)?)?;
         restrict(&tmp, 0o600)?;
-        fs::rename(&tmp, &self.path)?;
+        crate::fsutil::replace(&tmp, &self.path)?;
         Ok(())
     }
 
@@ -72,6 +72,7 @@ fn restrict(p: &Path, mode: u32) -> Result<()> {
     Ok(())
 }
 
+/// Windows:不另设 ACL。密钥文件在 %APPDATA% 下,系统默认只有本用户(和管理员)能读,见 ADR-0008。
 #[cfg(not(unix))]
 fn restrict(_p: &Path, _mode: u32) -> Result<()> {
     Ok(())

@@ -4,6 +4,7 @@
 pub mod config;
 pub mod crypto;
 pub mod error;
+mod fsutil;
 pub mod github;
 pub mod secrets;
 pub mod storage;
