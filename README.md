@@ -2,7 +2,7 @@
 
 一块超轻量的分块记事板。同页、无限、分块书写,支持图块、tab、按 tab 的 git 同步与端侧加密。数据就是你自己 git 仓库里的普通文件。
 
-> 状态:MVP 开发中(macOS)。
+> 状态:MVP 开发中(macOS、Windows)。
 
 ![板儿的主界面](site/app-light.png)
 
@@ -18,6 +18,8 @@
 ## 下载
 
 [下载最新版 `.dmg`](https://github.com/SandyKidYao/baner/releases/latest/download/Baner_macOS_universal.dmg)(macOS 11+,Apple 芯片与 Intel 通用),把 Baner 拖进「应用程序」;历史版本和更新说明在 [Releases](https://github.com/SandyKidYao/baner/releases)。0.1.1 起应用会自动检查新版本,在「⚙ → 版本」里一键更新并重启。这个版本是 ad-hoc 签名、没有公证,第一次打开时在「系统设置 → 隐私与安全性」里点「仍要打开」,或执行 `xattr -dr com.apple.quarantine /Applications/Baner.app`。
+
+Windows 10/11(x64):在 [Releases](https://github.com/SandyKidYao/baner/releases) 下载 `Baner_Windows_x64-setup.exe` 运行,装在当前用户下,不需要管理员权限。安装包没有代码签名,SmartScreen 拦下时点「更多信息 → 仍要运行」。快捷键里的 `⌘` 对应 `Ctrl`。
 
 ## 从源码跑起来(macOS)
 
@@ -36,7 +38,11 @@ npm run tauri dev              # 2. 启动开发版
 
 自己打正式版:`scripts/install-app.sh`(release 构建、ad-hoc 签名、不公证,装到 `/Applications/Baner.app`)。本机构建的应用不带隔离标记,可以直接打开。
 
-数据在 `~/Library/Application Support/dev.baner.app/`:`data/` 是数据目录(可以作为 git 仓库同步),`secrets.json` 和 `config.json` 只留在本机。
+### Windows
+
+需要 Node 22+、Rust stable(MSVC 工具链,`rustup` 默认即是)、Visual Studio 生成工具里的「使用 C++ 的桌面开发」,以及 WebView2(Windows 10/11 一般已自带)。命令同上;`scripts/*.sh` 在 Git Bash 里运行。自己打安装包:`npm run tauri build`,产物在 `target/release/bundle/nsis/`。
+
+数据在 `~/Library/Application Support/dev.baner.app/`(Windows:`%APPDATA%\dev.baner.app\`):`data/` 是数据目录(可以作为 git 仓库同步),`secrets.json` 和 `config.json` 只留在本机。
 
 ## 性能对比
 

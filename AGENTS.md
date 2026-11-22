@@ -1,6 +1,6 @@
 # Baner
 
-超轻量的分块记事板:Tauri 2 + React + CodeMirror 6 的界面,纯 Rust 的核心层负责存储、加密和 git 同步。已实现的平台是 macOS。
+超轻量的分块记事板:Tauri 2 + React + CodeMirror 6 的界面,纯 Rust 的核心层负责存储、加密和 git 同步。已实现的平台是 macOS 和 Windows(x64)。
 
 ## 命令
 
@@ -26,6 +26,9 @@ scripts/release.sh 0.2.0     # 发版:改版本号、提交、打 tag;推 tag �
 
 - 隐藏窗口里的 WebView 不执行 `requestAnimationFrame`,「内容就绪再显示窗口」用 `setTimeout`。
 - 真实应用的手动验证可用 agent-desktop:CodeMirror 编辑区用 `set-value` 输入(`type` 无效)。
+- 数据仓库不能做换行符转换:用户全局的 `core.autocrlf` 会被 libgit2 采用,把 `.md` 改成 CRLF、改坏短密文。`sync::open_or_init` 每次都在本仓库关掉它,别绕过这个函数打开仓库去提交或检出。
+- 改名覆盖文件用 `fsutil::replace`(Windows 上文件被占用时会重试),不要直接 `fs::rename`。
+- Windows 上 npm 经 cmd.exe 转发参数,`--config '{...}'` 这类 JSON 参数会被拆坏,改用配置文件。
 - macOS 上关闭窗口要隐藏应用(`app.hide()`),不要 `window.hide()`:窗口隐藏再显示后,WebView 的辅助功能树失效,agent-desktop 和读屏都点不到控件。
 
 ## 什么时候读什么

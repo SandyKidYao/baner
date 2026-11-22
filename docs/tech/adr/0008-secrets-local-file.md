@@ -29,6 +29,7 @@ ADR-0006 选了系统钥匙串。行走骨架中实测(2026-11-10):
 ### 选项 C:本机私有文件(采用)
 - `~/Library/Application Support/<应用标识>/secrets.json`,文件权限 0600,目录权限 0700。
 - 必须在数据目录(git 工作区)之外,代码层面强制检查。
+- Windows(2026-11 补充):在 `%APPDATA%\<应用标识>\secrets.json`,不另设 ACL;`%APPDATA%` 默认只有本用户和管理员可读,与 0600 的效果相当。
 - 内容:git token、解开的 age 文件钥匙(ADR-0004)。
 
 ## 决定

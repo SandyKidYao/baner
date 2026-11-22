@@ -2,7 +2,7 @@
 
 Baner 是一个本地应用,没有服务器、没有自己的账号体系。同步交给用户自己的 GitHub 仓库,登录用 GitHub App 的 Device Flow(ADR-0009)。
 
-已实现的平台是 macOS。整体设计以 Mac + Android 为目标(之后是 Windows、iOS),所以核心逻辑与界面都按跨端来组织。
+已实现的平台是 macOS 和 Windows(x64)。整体设计以 Mac + Android 为目标(之后是 iOS),所以核心逻辑与界面都按跨端来组织。
 
 ## 架构驱动
 
@@ -25,7 +25,7 @@ Baner 是一个本地应用,没有服务器、没有自己的账号体系。同�
 - **本机配置** `config.json`:远端地址、登录的 GitHub 账号、本机不同步的 tab。不进仓库。
 - **同步记录** `sync-log.json`:最近 50 次同步的时间和结果(失败原因是核心层的错误信息,不含 token),供设置面板显示。连续的同类记录合并计数。不进仓库,读写失败不影响同步。
 
-macOS 上这几个都在 `~/Library/Application Support/dev.baner.app/` 下,数据目录是其中的 `data/`。
+这几个都在应用数据目录下,数据目录是其中的 `data/`:macOS 是 `~/Library/Application Support/dev.baner.app/`,Windows 是 `%APPDATA%\dev.baner.app\`。Windows 上 `secrets.json` 不另设权限,靠 `%APPDATA%` 默认只有本用户可读(ADR-0008)。
 
 ## 分层
 
@@ -47,7 +47,7 @@ macOS 上这几个都在 `~/Library/Application Support/dev.baner.app/` 下,数�
 2. 核心层写入块文件;加密 tab 先加密再写。
 
 **自动同步**(启动时,以及停止编辑 10 秒后;也可以手动触发)
-1. 把不同步的 tab 写进 `.git/info/exclude`,提交本地改动。
+1. 把不同步的 tab 写进 `.git/info/exclude`,提交本地改动。每次打开仓库都把本仓库的 `core.autocrlf` 设为 false、在 `.git/info/attributes` 写 `* -text`:用户全局 git 配置里的换行符转换(Windows 上常见)会把文本块改成 CRLF,甚至改坏密文。
 2. fetch 远端并合并:
    - `.md` 文本块做三方合并;同一行冲突时,把冲突标记写进块文件并提交,同步符号显示 ⚠。
    - 其他文件(`tab.json`、`.age` 密文、图块文件等)无法按行合并,保留提交时间较新的一边。
@@ -88,7 +88,8 @@ macOS 上这几个都在 `~/Library/Application Support/dev.baner.app/` 下,数�
 
 - 只在本地运行,没有服务端。
 - macOS:本机构建 `.app`,使用 ad-hoc 签名,不公证(Apple 开发者账号要年费,与 D7 冲突)。安装脚本是 `scripts/install-app.sh`。
-- 推送版本 tag 后 CI 构建 universal 版发到 GitHub Release,附带签名的更新包和 `latest.json`;装了 0.1.1 及以后版本的应用在应用内更新(ADR-0010)。
+- Windows:NSIS 安装包,装在当前用户下(不需要管理员权限),不做代码签名(SmartScreen 会拦一次)。关闭窗口即退出应用。
+- 推送版本 tag 后 CI 构建 macOS universal 版和 Windows x64 安装包发到 GitHub Release,附带签名的更新包和 `latest.json`;装了 0.1.1 及以后版本的应用在应用内更新(ADR-0010)。
 - macOS 上点窗口的关闭按钮不退出,而是隐藏整个应用(同 ⌘H),应用留在 Dock 里继续运行(同步照常);点 Dock 图标恢复,⌘Q 才退出。不用隐藏窗口的做法:窗口隐藏再显示后,WebView 的辅助功能树会失效。
 
 ## 为什么是这个形态

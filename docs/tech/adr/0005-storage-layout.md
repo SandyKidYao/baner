@@ -39,6 +39,7 @@ superseded_by:
 
 - 排序键使用分数排序键(fractional index)。插入新块只新建一个文件;调整顺序就重命名文件,git 能识别为重命名。
 - 不同步的 tab 写进 `.git/info/exclude`,只在本机生效。
+- 文件在工作区和仓库里逐字节一致,不做换行符转换:本仓库 `core.autocrlf=false`,`.git/info/attributes` 写 `* -text`(都只在本机生效,不改变仓库里的布局)。
 - 每个 tab 的同步开关保存在本机的应用配置里;加密状态由 `.age` 后缀表示,随仓库同步。
 - `.baner/format.json` 记录格式版本,为以后迁移做准备。
 
