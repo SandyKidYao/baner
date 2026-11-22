@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>板儿 Baner</title>
-<meta name="description" content="板儿(Baner),一块超轻量的 macOS 分块记事板:同页分块书写、图块、按 tab 的 git 同步与端侧加密。数据就是你自己 git 仓库里的普通文件。">
+<meta name="description" content="板儿(Baner),一块超轻量的分块记事板(macOS、Windows):同页分块书写、图块、按 tab 的 git 同步与端侧加密。数据就是你自己 git 仓库里的普通文件。">
 <meta name="theme-color" content="#1f2238">
 <link rel="icon" href="icon.png">
 <style>
@@ -294,9 +294,10 @@ code { font: inherit; font-size: 0.94em; background: var(--code-bg); padding: 1p
             <p class="name"><strong>板儿</strong><span lang="en">Baner</span></p>
           </div>
           <h1><span class="mk"># </span>同一页,分块写。</h1>
-          <p class="lede">一块超轻量的 macOS 记事板。<kbd>⌘↵</kbd> 开一个新块,文字、代码和图都写在同一页上。数据就是你自己 git 仓库里的普通文件。</p>
+          <p class="lede">一块超轻量的记事板,macOS 和 Windows 都能用。<kbd>⌘↵</kbd> 开一个新块,文字、代码和图都写在同一页上。数据就是你自己 git 仓库里的普通文件。</p>
           <div class="actions">
-            <a class="btn primary" href="https://github.com/SandyKidYao/baner/releases/latest/download/Baner_macOS_universal.dmg">下载 macOS 版</a>
+            <a class="btn primary" data-os="mac" href="https://github.com/SandyKidYao/baner/releases/latest/download/Baner_macOS_universal.dmg">下载 macOS 版</a>
+            <a class="btn" data-os="win" href="https://github.com/SandyKidYao/baner/releases/latest/download/Baner_Windows_x64-setup.exe">下载 Windows 版</a>
             <a class="btn" href="https://github.com/SandyKidYao/baner">
               <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
               在 GitHub 查看
@@ -370,8 +371,11 @@ code { font: inherit; font-size: 0.94em; background: var(--code-bg); padding: 1p
         <span class="num">09</span>
         <div class="body">
           <h2><span class="mk">## </span>安装</h2>
-          <p><a href="https://github.com/SandyKidYao/baner/releases/latest/download/Baner_macOS_universal.dmg">下载 .dmg</a>,把板儿拖进「应用程序」。支持 macOS 11 及以上,Apple 芯片与 Intel 通用。历史版本和更新说明在 <a href="https://github.com/SandyKidYao/baner/releases">Releases</a>。</p>
+          <p><strong>macOS</strong>:<a href="https://github.com/SandyKidYao/baner/releases/latest/download/Baner_macOS_universal.dmg">下载 .dmg</a>,把板儿拖进「应用程序」。支持 macOS 11 及以上,Apple 芯片与 Intel 通用。</p>
           <p class="note">这一版没有经过 Apple 公证,第一次打开会被系统拦下:在「系统设置 → 隐私与安全性」里点「仍要打开」,或在终端执行 <code>xattr -dr com.apple.quarantine /Applications/Baner.app</code>。</p>
+          <p><strong>Windows</strong>:<a href="https://github.com/SandyKidYao/baner/releases/latest/download/Baner_Windows_x64-setup.exe">下载安装包</a>运行,装在当前用户下,不需要管理员权限。支持 Windows 10、11(x64)。快捷键里的 <code>⌘</code> 对应 <code>Ctrl</code>。</p>
+          <p class="note">安装包没有代码签名,SmartScreen 拦下时点「更多信息 → 仍要运行」。</p>
+          <p>两个平台都会在应用里自动检查新版本,「⚙ → 版本」一键更新。历史版本和更新说明在 <a href="https://github.com/SandyKidYao/baner/releases">Releases</a>。</p>
         </div>
       </section>
 
@@ -379,7 +383,7 @@ code { font: inherit; font-size: 0.94em; background: var(--code-bg); padding: 1p
         <span class="num">10</span>
         <div class="body">
           <h2><span class="mk">## </span>从源码运行</h2>
-          <p>需要 Node 22+、Rust stable、Xcode 命令行工具。</p>
+          <p>需要 Node 22+、Rust stable;macOS 上加 Xcode 命令行工具,Windows 上加 Visual Studio 生成工具里的「使用 C++ 的桌面开发」。</p>
           <div class="code">
             <span class="lang">bash</span>
             <button class="copy" type="button" aria-label="复制命令" title="复制命令" data-copy="install-cmd">
@@ -389,7 +393,7 @@ code { font: inherit; font-size: 0.94em; background: var(--code-bg); padding: 1p
 npm install                    <span class="c"># 1. 安装依赖(同时启用提交前钩子)</span>
 npm run tauri dev              <span class="c"># 2. 启动开发版</span></pre>
           </div>
-          <p class="note">自己打正式版:<code>scripts/install-app.sh</code>(release 构建、ad-hoc 签名,装到 <code>/Applications/Baner.app</code>)。本机构建的应用不带隔离标记,可以直接打开。</p>
+          <p class="note">自己打正式版:macOS 上用 <code>scripts/install-app.sh</code>(release 构建、ad-hoc 签名,装到 <code>/Applications/Baner.app</code>),本机构建的应用不带隔离标记,可以直接打开;Windows 上用 <code>npm run tauri build</code>,安装包在 <code>target/release/bundle/nsis/</code>。</p>
         </div>
       </section>
 
@@ -409,7 +413,7 @@ npm run tauri dev              <span class="c"># 2. 启动开发版</span></pre>
 
   <footer class="status">
     <span class="hint"><kbd>↑</kbd> <kbd>↓</kbd> 选块</span>
-    <span class="hint">状态:MVP 开发中(macOS)</span>
+    <span class="hint">状态:MVP 开发中(macOS、Windows)</span>
     <span class="right">
       <a href="https://github.com/SandyKidYao/baner">GitHub</a>
     </span>
@@ -418,6 +422,16 @@ npm run tauri dev              <span class="c"># 2. 启动开发版</span></pre>
 
 <script>
 (() => {
+  // Windows 访客:快捷键写成 Ctrl / Shift+Alt(同应用里的 src/rail/keys.ts),Windows 下载设为主按钮
+  if (/Win/.test(navigator.platform)) {
+    document.querySelectorAll(".block kbd").forEach((k) => {
+      k.textContent = k.textContent.replace("⇧⌥", "Shift+Alt+").replace("⌘", "Ctrl+");
+    });
+    document.querySelector('[data-os="mac"]')?.classList.remove("primary");
+    document.querySelector('[data-os="win"]')?.classList.add("primary");
+    const win = document.querySelector('[data-os="win"]');
+    win?.parentElement.prepend(win);
+  }
   const blocks = [...document.querySelectorAll(".block")];
   let cur = 0;
   const set = (i, scroll) => {

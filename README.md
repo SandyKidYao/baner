@@ -17,11 +17,15 @@
 
 ## 下载
 
-[下载最新版 `.dmg`](https://github.com/SandyKidYao/baner/releases/latest/download/Baner_macOS_universal.dmg)(macOS 11+,Apple 芯片与 Intel 通用),把 Baner 拖进「应用程序」;历史版本和更新说明在 [Releases](https://github.com/SandyKidYao/baner/releases)。0.1.1 起应用会自动检查新版本,在「⚙ → 版本」里一键更新并重启。这个版本是 ad-hoc 签名、没有公证,第一次打开时在「系统设置 → 隐私与安全性」里点「仍要打开」,或执行 `xattr -dr com.apple.quarantine /Applications/Baner.app`。
+**macOS 11+**(Apple 芯片与 Intel 通用):[下载最新版 `.dmg`](https://github.com/SandyKidYao/baner/releases/latest/download/Baner_macOS_universal.dmg),把 Baner 拖进「应用程序」。这个版本是 ad-hoc 签名、没有公证,第一次打开时在「系统设置 → 隐私与安全性」里点「仍要打开」,或执行 `xattr -dr com.apple.quarantine /Applications/Baner.app`。
 
-Windows 10/11(x64):在 [Releases](https://github.com/SandyKidYao/baner/releases) 下载 `Baner_Windows_x64-setup.exe` 运行,装在当前用户下,不需要管理员权限。安装包没有代码签名,SmartScreen 拦下时点「更多信息 → 仍要运行」。快捷键里的 `⌘` 对应 `Ctrl`。
+**Windows 10/11**(x64):[下载最新版安装包](https://github.com/SandyKidYao/baner/releases/latest/download/Baner_Windows_x64-setup.exe)运行,装在当前用户下,不需要管理员权限。安装包没有代码签名,SmartScreen 拦下时点「更多信息 → 仍要运行」。快捷键里的 `⌘` 对应 `Ctrl`、`⇧⌥` 对应 `Shift+Alt`。
 
-## 从源码跑起来(macOS)
+应用会自动检查新版本(macOS 自 0.1.1 起,Windows 自 0.1.5 起),在「⚙ → 版本」里一键更新并重启。历史版本和更新说明在 [Releases](https://github.com/SandyKidYao/baner/releases)。
+
+## 从源码跑起来
+
+### macOS
 
 需要 Node 22+、Rust stable、Xcode 命令行工具。先取得源码:
 

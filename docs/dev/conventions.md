@@ -47,7 +47,7 @@ git push origin main v0.2.0     # 推送 tag 触发 .github/workflows/release.ym
 ```
 
 - 版本号同时存在于 `package.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`(和两个 lock 文件),只通过 `scripts/release.sh` 修改;CI 会校验 tag 与它们一致。
-- CI 先在 macOS 上跑 `scripts/check.sh` 全部检查、在 Windows 上跑 clippy 和 Rust 测试;再分别构建 macOS universal(Apple 芯片 + Intel)的 `Baner_macOS_universal.dmg`、`.app.zip`、更新包 `Baner_macOS_universal.app.tar.gz`,和 Windows 的 `Baner_Windows_x64-setup.exe`(安装包兼更新包);最后合并生成包含三个平台的 `latest.json`,附 `SHA256SUMS.txt` 发布到 GitHub Release。更新包靠 `src-tauri/tauri.updater.conf.json` 打开。文件名不带版本号,产品页和 README 用 `releases/latest/download/Baner_macOS_universal.dmg` 指向最新版,改名要同步改这两处。带 `-` 的版本(如 `0.2.0-beta.1`)发成 prerelease。
+- CI 先在 macOS 上跑 `scripts/check.sh` 全部检查、在 Windows 上跑 clippy 和 Rust 测试;再分别构建 macOS universal(Apple 芯片 + Intel)的 `Baner_macOS_universal.dmg`、`.app.zip`、更新包 `Baner_macOS_universal.app.tar.gz`,和 Windows 的 `Baner_Windows_x64-setup.exe`(安装包兼更新包);最后合并生成包含三个平台的 `latest.json`,附 `SHA256SUMS.txt` 发布到 GitHub Release。更新包靠 `src-tauri/tauri.updater.conf.json` 打开。文件名不带版本号,产品页和 README 用 `releases/latest/download/Baner_macOS_universal.dmg`、`releases/latest/download/Baner_Windows_x64-setup.exe` 指向最新版,改名要同步改这两处。带 `-` 的版本(如 `0.2.0-beta.1`)发成 prerelease。
 - 构建失败修好后,可以在 Actions 页手动运行 Release 并填入已有 tag 重新发布;已存在的 Release 会覆盖同名产物。
 - Windows 安装包不做代码签名,SmartScreen 会拦一次。macOS 和本机构建一样是 ad-hoc 签名、不公证,下载的用户第一次打开需要手动放行(Release 说明里写了做法)。
 - **自动更新的签名私钥**(ADR-0010):更新包用 minisign 私钥签名,公钥在 `src-tauri/tauri.conf.json`。私钥在作者本机 `~/.tauri/baner.key`,同时存为仓库 secret `TAURI_SIGNING_PRIVATE_KEY`(有密码时再加 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`);缺了它 CI 构建会失败。私钥要另外备份:丢了就不能再给已安装的应用推送更新。`latest.json` 的地址写死在已发出的应用里,不能改名或挪走。
