@@ -1,6 +1,6 @@
 [package]
 name = "baner"
-version = "0.1.4"
+version = "0.1.5"
 description = "Baner: 超轻量分块记事板"
 edition.workspace = true
 license.workspace = true
