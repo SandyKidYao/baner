@@ -70,6 +70,30 @@ fn second_device_receives_first_devices_blocks() {
     assert_eq!(get(&e.b, "t1"), vec!["hello"]);
 }
 
+/// 用户的 git 配置开了 autocrlf(Windows 上常见)时,同步下来的文件也必须逐字节不变:
+/// 文本块不能变成 CRLF,没有 NUL 字节的密文不能被当成文本转换。
+#[test]
+fn line_endings_survive_autocrlf() {
+    let e = env();
+    let cipher: &[u8] = b"age-encryption.org/v1\n-> X25519 abc\n--- def\n\x01\x02\n";
+    put(&e.a, "t1", "b1", "l1\nl2\n");
+    // 只看字节,不走 Store 解密:放在另一个 tab 里
+    fs::create_dir_all(e.a.join("tabs/t2")).unwrap();
+    fs::write(e.a.join("tabs/t2/a1~b2.md.age"), cipher).unwrap();
+    run(&e.a);
+    let repo = Repository::open(&e.b).unwrap();
+    repo.config()
+        .unwrap()
+        .set_bool("core.autocrlf", true)
+        .unwrap();
+    fs::write(repo.path().join("info/attributes"), "* text\n").unwrap();
+    run(&e.b);
+    assert_eq!(get(&e.b, "t1"), vec!["l1\nl2\n"]);
+    assert_eq!(fs::read(e.b.join("tabs/t2/a1~b2.md.age")).unwrap(), cipher);
+    let repo = Repository::open(&e.b).unwrap();
+    assert!(!repo.config().unwrap().get_bool("core.autocrlf").unwrap());
+}
+
 #[test]
 fn edits_on_different_lines_merge_cleanly() {
     let e = env();

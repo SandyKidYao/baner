@@ -77,14 +77,38 @@ pub fn detect(dir: &Path) -> Detect {
 }
 
 fn open_or_init(dir: &Path) -> Result<Repository> {
-    match Repository::open(dir) {
-        Ok(r) => Ok(r),
+    let repo = match Repository::open(dir) {
+        Ok(r) => r,
         Err(_) => {
             let mut opts = git2::RepositoryInitOptions::new();
             opts.initial_head(BRANCH);
-            Ok(Repository::init_opts(dir, &opts)?)
+            Repository::init_opts(dir, &opts)?
         }
+    };
+    keep_bytes(&repo)?;
+    Ok(repo)
+}
+
+/// 文件在工作区和仓库里必须逐字节一致:关掉换行符转换。
+///
+/// 用户的全局 git 配置可能开了 `core.autocrlf`(Windows 上很常见),libgit2 会照做:
+/// 检出时把 `.md` 改成 CRLF;更糟的是没有 NUL 字节的短 `.age` 密文会被当成文本,
+/// 转换后就解不开了。仓库级配置压过全局配置,`.git/info/attributes` 压过任何
+/// `.gitattributes`;两者只对本机生效,不进仓库,不改变数据布局。
+/// 每次打开都检查一遍,早先建的仓库也会被修正。
+fn keep_bytes(repo: &Repository) -> Result<()> {
+    let mut cfg = repo.config()?.open_level(git2::ConfigLevel::Local)?;
+    if cfg.get_bool("core.autocrlf").ok() != Some(false) {
+        cfg.set_bool("core.autocrlf", false)?;
     }
+    let info = repo.path().join("info");
+    let attrs = info.join("attributes");
+    const BODY: &str = "# 由 Baner 维护:不做换行符转换\n* -text\n";
+    if fs::read_to_string(&attrs).ok().as_deref() != Some(BODY) {
+        fs::create_dir_all(&info)?;
+        fs::write(&attrs, BODY)?;
+    }
+    Ok(())
 }
 
 /// 设定远端地址(首次会初始化仓库)。
@@ -241,13 +265,24 @@ fn remote_error(e: git2::Error) -> Error {
     match e.class() {
         ErrorClass::Net | ErrorClass::Ssl => Error::Network(msg),
         _ if e.code() == ErrorCode::Certificate => Error::Network(msg),
-        // 连接被拒绝时 libgit2 用的是 OS 类别
-        ErrorClass::Os if msg.starts_with("failed to connect") => Error::Network(msg),
+        // 连接被拒绝时 libgit2 用的是 OS 类别。Windows 上走 WinHTTP,连不上、解析不了域名、超时
+        // 都报「failed to send request / failed to receive response: <本地化的系统消息>」
+        ErrorClass::Os if is_connect_failure(&msg) => Error::Network(msg),
         ErrorClass::Http if msg.ends_with(": 403") || msg.ends_with(": 404") => {
             Error::RepoUnavailable(msg)
         }
         _ => Error::Git(msg),
     }
+}
+
+fn is_connect_failure(msg: &str) -> bool {
+    [
+        "failed to connect",
+        "failed to send request",
+        "failed to receive response",
+    ]
+    .iter()
+    .any(|p| msg.starts_with(p))
 }
 
 fn fetch(repo: &Repository, creds: &Credentials) -> Result<Option<Oid>> {
