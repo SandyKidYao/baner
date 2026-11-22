@@ -10,7 +10,7 @@ use baner_core::sync::{self, Author, Credentials, Detect, SyncReport};
 use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tauri::{Manager, RunEvent, State, WindowEvent};
+use tauri::{Manager, State};
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::{Update, UpdaterExt};
 
@@ -482,7 +482,7 @@ pub fn run() {
         // 读屏和自动化都点不到界面里的控件。
         .on_window_event(|window, event| {
             #[cfg(target_os = "macos")]
-            if let WindowEvent::CloseRequested { api, .. } = event {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 let _ = window.app_handle().hide();
             }
@@ -521,7 +521,7 @@ pub fn run() {
         .run(|app, event| {
             // 关闭后点 Dock 图标:恢复应用和窗口
             #[cfg(target_os = "macos")]
-            if let RunEvent::Reopen { .. } = event {
+            if let tauri::RunEvent::Reopen { .. } = event {
                 let _ = app.show();
                 if let Some(w) = app.get_webview_window("main") {
                     let _ = w.unminimize();

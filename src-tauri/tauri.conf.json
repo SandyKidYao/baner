@@ -28,7 +28,8 @@
   "bundle": {
     "active": true,
     "targets": [
-      "app"
+      "app",
+      "nsis"
     ],
     "icon": [
       "icons/32x32.png",
@@ -41,6 +42,12 @@
     "macOS": {
       "signingIdentity": "-",
       "minimumSystemVersion": "11.0"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["SimpChinese"]
+      }
     }
   },
   "plugins": {
@@ -49,7 +56,10 @@
       "endpoints": [
         "https://github.com/SandyKidYao/baner/releases/latest/download/latest.json"
       ],
-      "requireSignedVersion": true
+      "requireSignedVersion": true,
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

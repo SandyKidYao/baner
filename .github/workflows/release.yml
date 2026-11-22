@@ -1,5 +1,6 @@
-# 推送 v* tag 时:跑全部检查 → 构建 macOS universal 版(Apple 芯片 + Intel)→ 发布 GitHub Release。
-# 发版流程见 scripts/release.sh。构建是 ad-hoc 签名、不公证,和本机 scripts/install-app.sh 一致。
+# 推送 v* tag 时:跑全部检查(macOS 全量 + Windows 上的 Rust 检查)→ 分别构建 macOS universal 版
+# (Apple 芯片 + Intel)和 Windows x64 安装包 → 合并 latest.json,发布 GitHub Release。
+# 发版流程见 scripts/release.sh。macOS 是 ad-hoc 签名、不公证;Windows 安装包不签名。
 # 同时生成应用内自动更新用的签名更新包和 latest.json(ADR-0010),签名私钥放在仓库 secret
 # TAURI_SIGNING_PRIVATE_KEY(无密码时 TAURI_SIGNING_PRIVATE_KEY_PASSWORD 可以不设)。
 name: Release
@@ -23,6 +24,11 @@ concurrency:
 env:
   TAG: ${{ github.event.inputs.tag || github.ref_name }}
   CARGO_TERM_COLOR: always
+
+# Windows runner 上也用 bash(Git Bash),脚本写法各平台一致
+defaults:
+  run:
+    shell: bash
 
 jobs:
   check:
@@ -57,11 +63,30 @@ jobs:
       - run: npm run build
       - run: scripts/check.sh
 
-  build:
-    needs: check
+  # 界面层与平台无关,已在 check 里测过;这里只确认 Rust 在 Windows 上能编译、测试通过
+  check-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - run: npm ci
+      - run: npm run build
+      - run: cargo clippy --workspace --all-targets -q -- -D warnings
+      - run: cargo test --workspace -q
+
+  build-macos:
+    needs: [check, check-windows]
     runs-on: macos-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -89,35 +114,107 @@ jobs:
             || { echo "::error::缺少仓库 secret TAURI_SIGNING_PRIVATE_KEY(见 docs/dev/conventions.md 的「发版」)"; exit 1; }
           # 本机构建不带更新包(不需要私钥),只在 CI 打开
           npm run tauri build -- --target universal-apple-darwin --bundles app,dmg \
-            --config '{"bundle":{"createUpdaterArtifacts":true}}'
+            --config src-tauri/tauri.updater.conf.json
 
       - name: 整理产物
         run: |
           bundle=target/universal-apple-darwin/release/bundle
           codesign --verify --deep --strict "$bundle/macos/Baner.app"
           lipo -archs "$bundle/macos/Baner.app/Contents/MacOS/baner"
-          mkdir -p out
+          mkdir -p out sig
           # 文件名不带版本号,产品页用 releases/latest/download/<文件名> 直接下载最新版
           cp "$bundle"/dmg/*.dmg out/Baner_macOS_universal.dmg
           ditto -c -k --keepParent "$bundle/macos/Baner.app" out/Baner_macOS_universal.app.zip
-          # 自动更新:更新包 + latest.json。universal 包两种芯片共用;已发出去的应用固定从
-          # releases/latest/download/latest.json 检查,所以 latest.json 这个文件名不能改
+          # 自动更新包;签名留给 publish 写进 latest.json
           cp "$bundle/macos/Baner.app.tar.gz" out/Baner_macOS_universal.app.tar.gz
-          SIG="$(cat "$bundle/macos/Baner.app.tar.gz.sig")" \
-          DL_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/Baner_macOS_universal.app.tar.gz" \
+          cp "$bundle/macos/Baner.app.tar.gz.sig" sig/darwin.sig
+          ls -lh out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: |
+            out
+            sig
+
+  build-windows:
+    needs: [check, check-windows]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - run: npm ci
+
+      - name: 构建 NSIS 安装包与签名的更新包
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          [[ -n "$TAURI_SIGNING_PRIVATE_KEY" ]] \
+            || { echo "::error::缺少仓库 secret TAURI_SIGNING_PRIVATE_KEY(见 docs/dev/conventions.md 的「发版」)"; exit 1; }
+          # 用配置文件而不是 JSON 字符串:Windows 上 npm 经 cmd.exe 转发参数,引号容易被拆坏
+          npm run tauri build -- --bundles nsis --config src-tauri/tauri.updater.conf.json
+
+      - name: 整理产物
+        run: |
+          bundle=target/release/bundle/nsis
+          mkdir -p out sig
+          # 安装包本身就是更新包(Tauri 2 的更新器直接运行它)
+          setup=$(ls "$bundle"/*-setup.exe)
+          cp "$setup" out/Baner_Windows_x64-setup.exe
+          cp "$setup.sig" sig/windows.sig
+          ls -lh out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            out
+            sig
+
+  publish:
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist-release
+          merge-multiple: true
+
+      - name: 生成 latest.json 与校验和
+        run: |
+          cd dist-release
+          # 已发出去的应用固定从 releases/latest/download/latest.json 检查,这个文件名不能改。
+          # universal 包两种芯片共用。
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+          DARWIN_SIG="$(cat sig/darwin.sig)" WINDOWS_SIG="$(cat sig/windows.sig)" BASE="$base" \
           node -e '
-            const { SIG, DL_URL, TAG, GITHUB_REPOSITORY } = process.env;
-            const p = { signature: SIG, url: DL_URL };
+            const { DARWIN_SIG, WINDOWS_SIG, BASE, TAG, GITHUB_REPOSITORY } = process.env;
+            const mac = { signature: DARWIN_SIG, url: `${BASE}/Baner_macOS_universal.app.tar.gz` };
+            const win = { signature: WINDOWS_SIG, url: `${BASE}/Baner_Windows_x64-setup.exe` };
             const m = {
               version: TAG.replace(/^v/, ""),
               notes: `https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}`,
               pub_date: new Date().toISOString(),
-              platforms: { "darwin-aarch64": p, "darwin-x86_64": p },
+              platforms: { "darwin-aarch64": mac, "darwin-x86_64": mac, "windows-x86_64": win },
             };
             require("fs").writeFileSync("out/latest.json", JSON.stringify(m, null, 2) + "\n");
           '
           cat out/latest.json
-          (cd out && shasum -a 256 * > SHA256SUMS.txt)
+          (cd out && sha256sum * > SHA256SUMS.txt)
           ls -lh out
 
       - name: 发布 GitHub Release
@@ -125,21 +222,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > notes.md <<'EOF'
-          ## 安装(macOS 11+,Apple 芯片与 Intel 通用)
+          ## 安装
 
-          下载 `.dmg`,把 Baner 拖进「应用程序」。已经装了 0.1.1 及以后版本的,在应用里「⚙ → 版本 → 更新并重启」即可,不用重新下载。
+          **macOS 11+(Apple 芯片与 Intel 通用)**:下载 `Baner_macOS_universal.dmg`,把 Baner 拖进「应用程序」。
 
           这个版本是 ad-hoc 签名、没有经过 Apple 公证,第一次打开会被系统拦下。任选一种放行:
 
           - 在「系统设置 → 隐私与安全性」里点「仍要打开」;
           - 或者在终端执行:`xattr -dr com.apple.quarantine /Applications/Baner.app`
 
+          **Windows 10/11(x64)**:下载 `Baner_Windows_x64-setup.exe` 运行,装在当前用户下,不需要管理员权限。安装包没有代码签名,SmartScreen 拦下时点「更多信息 → 仍要运行」。
+
+          已经装了支持自动更新的版本的,在应用里「⚙ → 版本 → 更新并重启」即可,不用重新下载。
+
           EOF
           flags=()
           [[ "$TAG" == *-* ]] && flags+=(--prerelease)
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" out/* --clobber
+            gh release upload "$TAG" dist-release/out/* --clobber
           else
-            gh release create "$TAG" out/* --title "Baner ${TAG}" \
+            gh release create "$TAG" dist-release/out/* --title "Baner ${TAG}" \
               --notes-file notes.md --generate-notes --verify-tag "${flags[@]}"
           fi

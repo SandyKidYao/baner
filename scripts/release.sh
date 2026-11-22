@@ -24,8 +24,13 @@ node -e '
   c.version = process.argv[1];
   fs.writeFileSync(f, JSON.stringify(c, null, 2) + "\n");
 ' "$version"
-# 只改 [package] 里第一行 version(行首的 version = "...")
-sed -i '' -E '1,/^version = /s/^version = ".*"/version = "'"$version"'"/' src-tauri/Cargo.toml
+# 只改 [package] 里第一行 version(行首的 version = "...")。用 node 而不是 sed -i:
+# macOS 的 BSD sed 和 Windows Git Bash 的 GNU sed 写法不兼容
+node -e '
+  const fs = require("fs"), f = "src-tauri/Cargo.toml";
+  const s = fs.readFileSync(f, "utf8");
+  fs.writeFileSync(f, s.replace(/^version = ".*"$/m, `version = "${process.argv[1]}"`));
+' "$version"
 cargo update -p baner --offline -q
 
 git add package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml Cargo.lock
