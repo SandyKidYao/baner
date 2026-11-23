@@ -1,4 +1,5 @@
 import { type MutableRefObject, useCallback, useEffect, useRef, useState } from "react";
+import { IS_MOBILE_OS } from "../app/platform";
 import { debounce } from "../blocks/debounce";
 import type { EditorApi } from "../blocks/TabEditor";
 import { type SyncStatus, syncNow, syncStatus } from "../ipc";
@@ -158,26 +159,45 @@ export function useSync({ editor, activeTab, onTabsChanged, onSynced, skipTabs, 
       .catch((e) => console.error("读取同步配置失败", e));
   }, [ready, refreshStatus, auto]);
 
+  /** 编辑后还在等 IDLE_MS 的同步 */
+  const pending = useRef(false);
+  const afterEdit = useRef(debounce(() => auto(), IDLE_MS));
+  useEffect(() => {
+    afterEdit.current = debounce(() => {
+      pending.current = false;
+      auto();
+    }, IDLE_MS);
+  }, [auto]);
+  const onSaved = useCallback(() => {
+    pending.current = true;
+    afterEdit.current();
+  }, []);
+
   // 窗口重新获得焦点、定时拉取;网络恢复时立即重试(授权等错误仍然暂停)
   useEffect(() => {
     const onFocus = () => Date.now() - lastAt.current > FOCUS_STALE_MS && auto();
     const onOnline = () => failures.current > 0 && !paused.current && run();
+    // 手机上切到后台几秒后 JS 就被冻结,等不到 IDLE_MS:有没同步的编辑就立即同步;回到前台按切回窗口处理
+    const onVisibility = () => {
+      if (!IS_MOBILE_OS) return;
+      if (document.visibilityState === "visible") onFocus();
+      else if (pending.current) {
+        pending.current = false;
+        afterEdit.current.flush();
+      }
+    };
     const t = setInterval(() => document.visibilityState === "visible" && auto(), PULL_MS);
     window.addEventListener("focus", onFocus);
     window.addEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("online", onOnline);
+      document.removeEventListener("visibilitychange", onVisibility);
       clearInterval(t);
     };
   }, [auto, run]);
   useEffect(() => () => clearTimeout(retryTimer.current), []);
-
-  const afterEdit = useRef(debounce(() => auto(), IDLE_MS));
-  useEffect(() => {
-    afterEdit.current = debounce(() => auto(), IDLE_MS);
-  }, [auto]);
-  const onSaved = useCallback(() => afterEdit.current(), []);
 
   /** 登录、换仓库、退出登录后调用:立即采用新状态,已配置就同步一次 */
   const onConfigured = useCallback(

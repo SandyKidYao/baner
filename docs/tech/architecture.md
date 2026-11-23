@@ -2,7 +2,7 @@
 
 Baner 是一个本地应用,没有服务器、没有自己的账号体系。同步交给用户自己的 GitHub 仓库,登录用 GitHub App 的 Device Flow(ADR-0009)。
 
-已实现的平台是 macOS 和 Windows(x64)。整体设计以 Mac + Android 为目标(之后是 iOS),所以核心逻辑与界面都按跨端来组织。
+已实现的平台是 macOS 和 Windows(x64);iOS 可以构建,目前只供自用,经 USB 部署。整体设计以 Mac + Android 为目标(之后是 iOS),所以核心逻辑与界面都按跨端来组织。
 
 ## 架构驱动
 
@@ -21,7 +21,7 @@ Baner 是一个本地应用,没有服务器、没有自己的账号体系。同�
 ## 系统上下文
 
 - **GitHub**:唯一的外部系统。用户用 GitHub App「baner-notes」登录(Device Flow),只授权存笔记的仓库;应用通过 HTTPS 和这个 token 列出仓库、fetch 与 push(ADR-0009)。另外,应用定时读取 Baner 自己仓库 Release 上的 `latest.json` 检查新版本,下载签名的更新包替换自己(ADR-0010),这一步不需要登录。
-- **本机密钥文件** `secrets.json`:保存 token 和解开的文件钥匙,权限 0600,必须在数据目录之外(ADR-0008)。
+- **本机密钥文件** `secrets.json`:保存 token 和解开的文件钥匙,权限 0600,必须在数据目录之外(ADR-0008)。iOS 上放在应用目录下单独的 `private/` 里,这个目录标记为不进 iCloud 和电脑备份。
 - **本机配置** `config.json`:远端地址、登录的 GitHub 账号、本机不同步的 tab。不进仓库。
 - **同步记录** `sync-log.json`:最近 50 次同步的时间和结果(失败原因是核心层的错误信息,不含 token),供设置面板显示。连续的同类记录合并计数。不进仓库,读写失败不影响同步。
 
@@ -89,6 +89,7 @@ Baner 是一个本地应用,没有服务器、没有自己的账号体系。同�
 - 只在本地运行,没有服务端。
 - macOS:本机构建 `.app`,使用 ad-hoc 签名,不公证(Apple 开发者账号要年费,与 D7 冲突)。安装脚本是 `scripts/install-app.sh`。
 - Windows:NSIS 安装包,装在当前用户下(不需要管理员权限),不做代码签名(SmartScreen 会拦一次)。关闭窗口即退出应用。
+- iOS:`scripts/ios-deploy.sh` 用免费 Apple ID 签名,经 USB 装到手机,签名 7 天后过期,重跑即续期;不上架、不进 CI 发布。没有应用内更新(updater 插件只在桌面编译)。界面始终按手机布局,图块只读;切到后台时有未同步的编辑就立即同步(几秒后 JS 会被冻结),回到前台时按切回窗口处理。
 - 推送版本 tag 后 CI 构建 macOS universal 版和 Windows x64 安装包发到 GitHub Release,附带签名的更新包和 `latest.json`;装了 0.1.1 及以后版本的应用在应用内更新(ADR-0010)。
 - macOS 上点窗口的关闭按钮不退出,而是隐藏整个应用(同 ⌘H),应用留在 Dock 里继续运行(同步照常);点 Dock 图标恢复,⌘Q 才退出。不用隐藏窗口的做法:窗口隐藏再显示后,WebView 的辅助功能树会失效。
 

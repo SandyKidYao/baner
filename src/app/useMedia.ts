@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { IS_PHONE } from "./platform";
 
 /** 跟随一条媒体查询(窗口宽度、亮暗模式)。 */
 export function useMedia(query: string): boolean {
@@ -12,6 +13,6 @@ export function useMedia(query: string): boolean {
   );
 }
 
-/** 宽度不到 600 时按手机布局(design.md「间距与布局」) */
+/** 宽度不到 600 时按手机布局(design.md「间距与布局」);手机横屏也按手机布局 */
 export const NARROW = "(max-width: 599px)";
-export const useNarrow = () => useMedia(NARROW);
+export const useNarrow = () => useMedia(NARROW) || IS_PHONE;

@@ -313,6 +313,7 @@ name = "baner"
 version = "0.1.5"
 dependencies = [
  "baner-core",
+ "objc2-foundation",
  "serde",
  "serde_json",
  "tauri",

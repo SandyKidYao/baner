@@ -23,6 +23,13 @@ baner-core = { path = "../crates/baner-core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-opener = "2"
+
+# 自动更新只在桌面上(ADR-0010);iOS 靠连线重新部署
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
 
 
+
+# iOS:密钥文件所在目录不进 iCloud / 电脑备份(ADR-0008)
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSURL", "NSString", "NSValue", "NSError", "NSObject"] }

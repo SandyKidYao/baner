@@ -1,3 +1,4 @@
+import { IS_MOBILE_OS } from "../app/platform";
 import type { UpdateApi } from "./useUpdate";
 
 /** 设置面板底部:版本号、检查更新、更新并重启。 */
@@ -12,7 +13,7 @@ export function UpdateSection({ update }: { update: UpdateApi }) {
           <span>
             Baner <b className="app-version">{version ?? "…"}</b>
           </span>
-          {!info && !busy && (
+          {!IS_MOBILE_OS && !info && !busy && (
             <button type="button" className="sym" disabled={phase === "checking"} onClick={update.check}>
               {phase === "checking" ? "检查中…" : "检查更新"}
             </button>

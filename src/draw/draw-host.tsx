@@ -2,6 +2,7 @@
 import { EditorSelection } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { createRoot, type Root } from "react-dom/client";
+import { IS_PHONE } from "../app/platform";
 import { NARROW } from "../app/useMedia";
 import { blocksField, type DrawHooks, setDrawEditing } from "../blocks/editor";
 import { newBlock, serialize } from "../blocks/model";
@@ -33,7 +34,7 @@ export class DrawHost {
     this.hooks = {
       widget: (b, first, no) => new DrawWidget(this, b.id, b.key, first, no),
       inserted: (id) => this.open(id),
-      canInsert: () => !window.matchMedia(NARROW).matches,
+      canInsert: () => !IS_PHONE && !window.matchMedia(NARROW).matches,
     };
   }
 

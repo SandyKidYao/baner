@@ -2,7 +2,7 @@
 
 一块超轻量的分块记事板。同页、无限、分块书写,支持图块、tab、按 tab 的 git 同步与端侧加密。数据就是你自己 git 仓库里的普通文件。
 
-> 状态:MVP 开发中(macOS、Windows)。
+> 状态:MVP 开发中(macOS、Windows;iOS 可自己构建装到手机)。
 
 ![板儿的主界面](site/app-light.png)
 
@@ -45,6 +45,17 @@ npm run tauri dev              # 2. 启动开发版
 ### Windows
 
 需要 Node 22+、Rust stable(MSVC 工具链,`rustup` 默认即是)、Visual Studio 生成工具里的「使用 C++ 的桌面开发」,以及 WebView2(Windows 10/11 一般已自带)。命令同上;`scripts/*.sh` 在 Git Bash 里运行。自己打安装包:`npm run tauri build`,产物在 `target/release/bundle/nsis/`。
+
+### iOS(装到自己的 iPhone)
+
+不需要付费的 Apple 开发者账号,用免费 Apple ID 经 USB 安装:
+
+1. 在 macOS 上装好 Xcode,打开一次,在 Settings → Apple Accounts 里登录 Apple ID。另外需要 `brew install xcodegen` 和 `rustup target add aarch64-apple-ios`。
+2. iPhone 用数据线连上 Mac,点「信任」,在「设置 → 隐私与安全性」里打开「开发者模式」。
+3. 把 `src-tauri/gen/apple/project.yml` 里的 `DEVELOPMENT_TEAM` 换成自己的 Team ID,并在 `src-tauri/gen/apple/` 下运行 `xcodegen generate`。
+4. 运行 `scripts/ios-deploy.sh`。第一次打开时,在「设置 → 通用 → VPN 与设备管理」里信任自己的开发者证书。
+
+免费 Apple ID 签名的应用 7 天后打不开,重跑 `scripts/ios-deploy.sh` 即可续期(覆盖安装,数据保留)。iOS 上没有应用内更新,升级也是重新部署。手机上图块只读。
 
 数据在 `~/Library/Application Support/dev.baner.app/`(Windows:`%APPDATA%\dev.baner.app\`):`data/` 是数据目录(可以作为 git 仓库同步),`secrets.json` 和 `config.json` 只留在本机。
 

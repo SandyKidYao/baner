@@ -1,4 +1,19 @@
 {
-  "note": "手写「板」字图标;字体 Ma Shan Zheng(马善政毛笔楷,SIL OFL 1.1)。重新生成:npx tauri icon src-tauri/icons/source/icon-1024.png",
-  "params": {"src":"font","scale":0.8,"weight":0,"rot":0,"dx":0,"dy":0.01,"radius":0.225,"accent":"none","accentColor":"#f2b544","mac":true,"font":"Ma Shan Zheng","glyph":"#f2b544","bg":"#2c3052","bg2":"#1f2238"}
+  "note": "手写「板」字图标;字体 Ma Shan Zheng(马善政毛笔楷,SIL OFL 1.1)。重新生成:npx tauri icon src-tauri/icons/source/icon-1024.png。iOS 图标需要不透明、铺满的方块:icon-ios-1024.png 由 icon-1024.png 取出字形、铺上同样的渐变底色得到;生成 iOS 图标:npx tauri icon src-tauri/icons/source/icon-ios-1024.png -o <临时目录>,再把其中 ios/ 下的文件复制到 src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset/",
+  "params": {
+    "src": "font",
+    "scale": 0.8,
+    "weight": 0,
+    "rot": 0,
+    "dx": 0,
+    "dy": 0.01,
+    "radius": 0.225,
+    "accent": "none",
+    "accentColor": "#f2b544",
+    "mac": true,
+    "font": "Ma Shan Zheng",
+    "glyph": "#f2b544",
+    "bg": "#2c3052",
+    "bg2": "#1f2238"
+  }
 }

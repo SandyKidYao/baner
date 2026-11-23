@@ -1,5 +1,6 @@
 import ReactDOM from "react-dom/client";
 import App from "./app/App";
+import { followVisualViewport } from "./app/viewport";
 import "./theme/tokens.css";
 import "./theme/base.css";
 
@@ -8,6 +9,7 @@ async function boot() {
     const { installMockIpc } = await import("./ipc/mock");
     installMockIpc();
   }
+  followVisualViewport();
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(<App />);
 }
 boot();

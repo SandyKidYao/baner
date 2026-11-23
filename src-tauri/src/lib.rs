@@ -12,6 +12,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::{Manager, State};
 use tauri_plugin_opener::OpenerExt;
+#[cfg(desktop)]
 use tauri_plugin_updater::{Update, UpdaterExt};
 
 struct AppState {
@@ -27,6 +28,7 @@ struct AppState {
     /// 进行中的 GitHub 登录:device code 只留在这里,不交给界面
     login: Arc<Mutex<Option<String>>>,
     /// 检查到、还没安装的新版本
+    #[cfg(desktop)]
     update: Mutex<Option<Update>>,
 }
 
@@ -400,6 +402,7 @@ fn update_err(e: impl std::fmt::Display) -> baner_core::Error {
 }
 
 /// 到 GitHub Release 上的 latest.json 检查新版本(ADR-0010)。没有新版本时返回 None。
+#[cfg(desktop)]
 #[tauri::command]
 async fn update_check(app: tauri::AppHandle) -> CmdResult<Option<UpdateInfo>> {
     let update = app
@@ -418,6 +421,7 @@ async fn update_check(app: tauri::AppHandle) -> CmdResult<Option<UpdateInfo>> {
 }
 
 /// 下载并安装 `update_check` 找到的新版本(校验签名后替换 .app),然后重启。
+#[cfg(desktop)]
 #[tauri::command]
 async fn update_install(app: tauri::AppHandle) -> CmdResult<()> {
     if cfg!(debug_assertions) {
@@ -438,6 +442,19 @@ async fn update_install(app: tauri::AppHandle) -> CmdResult<()> {
     app.restart()
 }
 
+/// 手机上没有应用内更新(重新部署或走应用商店),界面也不会调用这两个命令。
+#[cfg(mobile)]
+#[tauri::command]
+async fn update_check() -> CmdResult<Option<UpdateInfo>> {
+    Ok(None)
+}
+
+#[cfg(mobile)]
+#[tauri::command]
+async fn update_install() -> CmdResult<()> {
+    Err(update_err("not available on this platform"))
+}
+
 /// 界面内容就绪后调用:再显示窗口,避免空白闪烁。
 #[tauri::command]
 fn app_ready(window: tauri::WebviewWindow) {
@@ -445,12 +462,37 @@ fn app_ready(window: tauri::WebviewWindow) {
     let _ = window.set_focus();
 }
 
+/// 密钥文件所在目录。iOS 默认把 Application Support 备份到 iCloud 和电脑,
+/// 所以单独放一个目录并标记为不备份;标记打在目录上,文件被原子替换后依然有效。
+#[cfg(not(target_os = "ios"))]
+fn secrets_dir(app_dir: &std::path::Path) -> PathBuf {
+    app_dir.to_path_buf()
+}
+
+#[cfg(target_os = "ios")]
+fn secrets_dir(app_dir: &std::path::Path) -> PathBuf {
+    use objc2_foundation::{NSNumber, NSString, NSURL, NSURLIsExcludedFromBackupKey};
+    let dir = app_dir.join("private");
+    if std::fs::create_dir_all(&dir).is_ok()
+        && let Some(p) = dir.to_str()
+    {
+        let url = NSURL::fileURLWithPath(&NSString::from_str(p));
+        let yes = NSNumber::new_bool(true);
+        // 失败时(极少见)密钥照常可用,只是会进备份;不因此阻止启动
+        let _ =
+            unsafe { url.setResourceValue_forKey_error(Some(&yes), NSURLIsExcludedFromBackupKey) };
+    }
+    dir
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
+            #[cfg(desktop)]
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
             // BANER_APP_DIR / BANER_DATA_DIR 可覆盖默认位置(例如在一台机器上模拟两台设备)
             let app_dir: PathBuf = std::env::var_os("BANER_APP_DIR")
                 .map(Into::into)
@@ -460,7 +502,7 @@ pub fn run() {
                 .unwrap_or_else(|| app_dir.join("data"));
             let mut store = Store::open(&dir)?;
             // 密钥文件在数据目录之外,永不进仓库(ADR-0008)
-            let secrets = SecretStore::open(app_dir.join("secrets.json"), &dir)?;
+            let secrets = SecretStore::open(secrets_dir(&app_dir).join("secrets.json"), &dir)?;
             if let Some(k) = secrets.get(FILE_KEY)? {
                 store.set_key(Some(FileKey::parse(&k)?));
             }
@@ -473,6 +515,7 @@ pub fn run() {
                 sync_lock: Arc::new(Mutex::new(())),
                 http: Arc::new(Https::default()),
                 login: Arc::new(Mutex::new(None)),
+                #[cfg(desktop)]
                 update: Mutex::new(None),
             });
             Ok(())

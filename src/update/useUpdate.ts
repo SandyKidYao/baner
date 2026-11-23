@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { IS_MOBILE_OS } from "../app/platform";
 import { appVersion, type UpdateInfo, updateCheck, updateInstall } from "../ipc";
 import { describeUpdateError } from "./errors";
 
@@ -62,6 +63,7 @@ export function useUpdate(beforeInstall: () => Promise<unknown>): UpdateApi {
   }, []);
 
   useEffect(() => {
+    if (IS_MOBILE_OS) return; // 手机上没有应用内更新
     const first = setTimeout(() => run(false), FIRST_CHECK_MS);
     const every = setInterval(() => run(false), CHECK_EVERY_MS);
     return () => {

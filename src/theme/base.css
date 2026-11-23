@@ -20,6 +20,12 @@ body,
 :root {
   --text-body: var(--text-md); /* 正文:桌面 13,手机 15 */
 }
+html {
+  /* 手机:不随横屏放大字号、点按不闪灰底、不整页回弹 */
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
 body {
   background: var(--color-rail);
   color: var(--color-text);
@@ -50,7 +56,7 @@ svg {
 .app {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: var(--app-height, 100%); /* 手机上是键盘以外的可见高度(src/app/viewport.ts) */
   padding: var(--island-gap) var(--island-gap) 0;
   background: var(--color-rail);
 }
@@ -1216,7 +1222,12 @@ div.draw-preview:hover {
 /* ───────────── 手机布局(宽度不到 600):顶栏在底色上,页面是一整块岛,轨道收进 ≡ 抽屉 ───────────── */
 .app.narrow {
   --text-body: var(--text-lg);
-  padding: 0 var(--island-gap) var(--island-gap);
+  /* 刘海、灵动岛、底部横条与横屏两侧的安全区(index.html 的 viewport-fit=cover) */
+  padding: env(safe-area-inset-top) calc(var(--island-gap) + env(safe-area-inset-right))
+    calc(var(--island-gap) + env(safe-area-inset-bottom)) calc(var(--island-gap) + env(safe-area-inset-left));
+}
+.kb-open .app.narrow {
+  padding-bottom: var(--island-gap); /* 键盘挡住了底部横条 */
 }
 .narrow .ph {
   min-height: 52px;
@@ -1340,9 +1351,9 @@ div.draw-preview:hover {
 }
 .drawer {
   position: absolute;
-  left: var(--island-gap);
-  top: var(--island-gap);
-  bottom: var(--island-gap);
+  left: calc(var(--island-gap) + env(safe-area-inset-left));
+  top: calc(var(--island-gap) + env(safe-area-inset-top));
+  bottom: calc(var(--island-gap) + env(safe-area-inset-bottom));
   width: min(78%, 320px);
   display: flex;
   flex-direction: column;
